@@ -1,3 +1,5 @@
+<img src="docs/banner.png" alt="power-automate-mcp - an MCP server that lets Claude create, run and debug your Power Automate flows" width="100%">
+
 # power-automate-mcp
 
 **An MCP server that lets Claude create, run, and debug your Power Automate flows.**
@@ -72,6 +74,30 @@ Every useful MCP server is four layers. Only two of them are interesting.
 | **3. Shaping** | Turn API JSON into model-readable JSON | ~160 | **You. This is the work.** |
 | **4. Docstrings** | Teach the model what the API will not | ~200 | **You. This is the moat.** |
 
+```mermaid
+flowchart TB
+    subgraph gen["Generated in one prompt"]
+        direction TB
+        L1["Layer 1 - Auth<br/>MSAL device code, token cached to disk<br/>~45 lines"]
+        L2["Layer 2 - Transport<br/>retry 401 / 429 / 5xx, follow nextLink<br/>~50 lines"]
+        L1 --> L2
+    end
+    subgraph own["Where your value lives"]
+        direction TB
+        L3["Layer 3 - Shaping<br/>~60 API fields down to the 4 worth reading<br/>~160 lines"]
+        L4["Layer 4 - Docstrings<br/>what the API will never tell you<br/>~200 lines"]
+        L3 --> L4
+    end
+    gen --> own
+
+    classDef cheap fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
+    classDef dear fill:#F26F21,stroke:#c2551a,color:#ffffff
+    class L1,L2 cheap
+    class L3,L4 dear
+    style gen fill:#ffffff,stroke:#cbd5e1,color:#64748b
+    style own fill:#fff7f0,stroke:#F26F21,color:#2A3B4E
+```
+
 Wrapping an API is not the point, and it is precisely the part you can automate.
 The value is in deciding what to hand the model, and in writing down what you
 learned so that you never learn it twice.
@@ -130,6 +156,29 @@ nothing else.
    action alone. The cause is almost always in what an earlier action produced.
    So the response pairs each failed action with the outputs of the actions that
    succeeded before it, in execution order.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant Claude
+    participant MCP as pa-demo-mcp
+    participant PA as Power Automate API
+    participant Blob as SAS-signed blob
+
+    You->>Claude: "It failed. What happened?"
+    Claude->>MCP: explain_run(flow_id, run_id)
+    MCP->>PA: GET /runs/{run_id}/actions
+    PA-->>MCP: Compute_batches - Failed, error: null
+    rect rgb(255, 235, 220)
+        Note over MCP,PA: A naive wrapper stops here<br/>and reports "Failed" with no reason
+    end
+    MCP->>Blob: GET outputsLink.uri
+    Blob-->>MCP: "div was invoked with a divisor of zero"
+    MCP->>MCP: pair failure with upstream outputs
+    MCP-->>Claude: failed action + resolved error + Load_settings outputs
+    Claude-->>You: Compute_batches divided by batch_size,<br/>which Load_settings set to 0
+```
 
 One tool call. The equivalent of about a dozen clicks through the run history view.
 That gap is the entire argument for building your own MCP server.
@@ -384,6 +433,40 @@ Ten tools in three groups.
 | **Author** | `list_flows`, `get_flow`, `create_flow`, `update_flow_definition`, `bind_connection` |
 | **Operate** | `run_flow`, `list_runs` |
 | **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` |
+
+Which one to reach for:
+
+```mermaid
+flowchart TD
+    Q{"What are you trying to do?"}
+
+    Q -->|"See what exists"| T1["list_flows<br/>get_flow"]
+    Q -->|"Build something"| T2["create_flow"]
+    Q -->|"Something is wrong"| D{"Do you have a failed run?"}
+
+    T2 --> C{"Does it use a connector?"}
+    C -->|No| R["run_flow"]
+    C -->|Yes| B["bind_connection<br/>then it can start"]
+    B --> R
+
+    D -->|"Not yet"| L["list_runs<br/>find the failed run_id"]
+    L --> E
+    D -->|Yes| E["explain_run<br/>which action, what error,<br/>on what inputs"]
+
+    E --> S{"Is the cause clear?"}
+    S -->|Yes| F["update_flow_definition<br/>then run_flow"]
+    S -->|"No - it works other days"| CR["compare_runs<br/>diff against the last good run"]
+    S -->|"No - it fails a lot"| AH["analyze_flow_health<br/>flaky or broken? which action?"]
+    CR --> F
+    AH --> F
+
+    classDef hero fill:#F26F21,stroke:#c2551a,color:#ffffff
+    classDef tool fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
+    classDef ask fill:#2A3B4E,stroke:#1b2733,color:#ffffff
+    class E,CR,AH hero
+    class T1,T2,R,B,L,F tool
+    class Q,C,D,S ask
+```
 
 ### `list_flows(state="", top=25)`
 
@@ -660,6 +743,34 @@ already exists in the environment:
 your own MCP server should absorb. An API that requires a three-step dance to reach a
 working state is an API whose tool layer should expose the destination, not the dance.
 
+```mermaid
+flowchart LR
+    subgraph naive["What create_flow alone gives you"]
+        direction TB
+        A["create_flow<br/>(definition using a connector)"] --> B["201 Created"]
+        B --> C["connectionReferences: { }<br/>/connections is empty"]
+        C --> D["Start &rarr; CannotStartUnpublishedSolutionFlow<br/>passing connectionReferences on<br/>create does not help either"]
+    end
+
+    subgraph fix["bind_connection does all three"]
+        direction TB
+        E["1. resolve the connectionName"] --> F["2. PATCH definition<br/>+ connectionReferences"]
+        F --> G["3. POST /start"]
+    end
+
+    naive -.->|"blocked"| fix
+    fix --> H["Running"]
+
+    classDef bad fill:#fdecea,stroke:#d93025,color:#7f1d1d
+    classDef good fill:#F26F21,stroke:#c2551a,color:#ffffff
+    classDef plain fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
+    class C,D bad
+    class H good
+    class A,B,E,F,G plain
+    style naive fill:#fff5f5,stroke:#d93025,color:#7f1d1d
+    style fix fill:#fff7f0,stroke:#F26F21,color:#2A3B4E
+```
+
 Nothing in any of these APIs can create and authenticate a brand new connection.
 Make that one in the portal first.
 
@@ -702,6 +813,22 @@ The trade-off is real and is documented rather than hidden: **a connection that 
 uses yet is invisible.** For the question that actually matters, "is connector X already
 connected here and what is its `connectionName`", any bindable connection is normally
 referenced by at least one flow.
+
+```mermaid
+flowchart TB
+    N["You need a connectionName to bind a connection"]
+    N --> A["GET /environments/{env}/connections<br/>Microsoft.ProcessSimple &rarr; 404 &nbsp;&nbsp;|&nbsp;&nbsp; Microsoft.PowerApps &rarr; 404"]
+    A --> C["GET api.powerapps.com/.../connections &mdash; the route that does exist<br/>403 InvalidPath: needs aud=service.powerapps.com,<br/>i.e. a second app registration and a second consent"]
+    C -.->|"so this server does this instead"| E["GET /flows &rarr; per flow GET /flows/{id}/connections &rarr; union the results"]
+    E --> H["Trade-off, documented not hidden:<br/>a connection that no flow uses yet is invisible"]
+
+    classDef bad fill:#fdecea,stroke:#d93025,color:#7f1d1d
+    classDef good fill:#F26F21,stroke:#c2551a,color:#ffffff
+    classDef plain fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
+    class A,C bad
+    class E good
+    class N,H plain
+```
 
 No code generator produces that workaround. It only exists because someone hit the 404,
 then hit the 403, then found the flow-scoped route.
