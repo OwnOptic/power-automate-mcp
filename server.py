@@ -27,6 +27,7 @@ from __future__ import annotations
 import atexit
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -228,6 +229,96 @@ def _resolve_error(props: dict) -> str | None:
     )
 
 
+def _parse_time(value: str | None) -> datetime | None:
+    """Parse a Power Automate timestamp.
+
+    Not as trivial as it looks. PA emits .NET "round-trip" timestamps with SEVEN
+    fractional digits (2026-08-04T14:22:01.1234567Z). On Python 3.10 and earlier
+    datetime.fromisoformat accepts neither the trailing Z nor a 7-digit fraction,
+    so the obvious one-liner raises ValueError on real data and duration stats
+    silently come back empty. Python 3.11 relaxed both, but this project supports
+    3.10, so normalise explicitly rather than depending on the runtime version.
+
+    Returns None rather than raising: a stats helper must never take down the tool.
+    """
+    if not value:
+        return None
+    text = value.replace("Z", "+00:00")
+    if "." in text:
+        head, _, tail = text.partition(".")
+        digits = ""
+        for char in tail:
+            if not char.isdigit():
+                break
+            digits += char
+        offset = tail[len(digits) :]  # whatever followed the fraction, e.g. +00:00
+        text = f"{head}.{digits[:6].ljust(6, '0')}{offset}"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _duration_seconds(start: str | None, end: str | None) -> float | None:
+    a, b = _parse_time(start), _parse_time(end)
+    return (b - a).total_seconds() if a and b else None
+
+
+def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
+    """Union the connections referenced by the environment's flows, keyed by connection id.
+
+    IN-USE ONLY, and that is a limitation of the API, not a shortcut.
+
+    There is no environment-wide connections route reachable with a Flow token:
+    /environments/{env}/connections returns 404 under BOTH the Microsoft.ProcessSimple
+    and Microsoft.PowerApps providers. The real route lives on a different host and
+    audience entirely -
+        GET https://api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections
+    - and calling it with a service.flow.microsoft.com token returns 403 InvalidPath.
+    You would need an aud=service.powerapps.com token, i.e. a second app registration
+    and a second consent, to enumerate connections properly.
+
+    The per-flow route DOES work, so this walks flows and unions what they reference.
+    Consequence: a connection no flow uses yet is invisible here. For the question that
+    actually matters - "is connector X already connected in this environment, and what
+    is its connectionName?" - any bindable connection is normally on at least one flow.
+
+    Costs one request per flow, hence max_flows.
+    """
+    flows = _list(f"/environments/{ENV_ID}/flows", params={"$top": max_flows}, cap=max_flows)
+    found: dict[str, dict] = {}
+
+    for flow in flows:
+        flow_id = flow.get("name")
+        if not flow_id:
+            continue
+        try:
+            raw = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}/connections")
+        except RuntimeError:
+            continue  # one unreadable flow must not sink the whole scan
+        items = raw if isinstance(raw, list) else raw.get("value", [])
+        flow_name = flow.get("properties", {}).get("displayName") or flow_id
+
+        for conn in items:
+            props = conn.get("properties", {}) or {}
+            conn_id = conn.get("name") or str(conn.get("id", "")).rsplit("/", 1)[-1]
+            if not conn_id:
+                continue
+            entry = found.setdefault(
+                conn_id,
+                {
+                    "connection_name": conn_id,
+                    "display_name": props.get("displayName"),
+                    "connector": (props.get("apiId") or "").split("/")[-1],
+                    "status": (props.get("statuses") or [{}])[0].get("status"),
+                    "used_by_flows": [],
+                },
+            )
+            entry["used_by_flows"].append(flow_name)
+
+    return found
+
+
 # ---------------------------------------------------------------------------
 # LAYER 4 - TOOLS
 # Seven tools covering one loop: see -> build -> run -> fail -> understand -> fix.
@@ -322,6 +413,111 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
 
 
 @mcp.tool()
+def bind_connection(
+    flow_id: str,
+    connector: str,
+    connection_name: str = "",
+    start: bool = True,
+) -> dict:
+    """Bind an existing connection to a flow and start it. The missing step of create_flow.
+
+    This is the tool that makes headless connector-flow creation actually work.
+    `create_flow` returns 201 but leaves connectionReferences empty, and the flow
+    cannot be started ("CannotStartUnpublishedSolutionFlow"). Binding is a separate
+    PATCH that has to carry both the full definition AND the connection reference.
+    This tool does the whole three-step sequence in one call:
+
+        1. resolve the connection      (which connectionName for this connector?)
+        2. PATCH definition + reference
+        3. start the flow
+
+    `connector` is the connector's logical name, e.g. "shared_office365",
+    "shared_teams", "shared_sharepointonline".
+
+    `connection_name` is the concrete connection id, e.g. "shared-office365-8f3a...".
+    Leave it empty and the tool resolves it automatically. If the environment has
+    several connections for that connector, it does NOT guess: it returns
+    status "ambiguous" with the candidates so you can pass one explicitly.
+
+    THE CONNECTION MUST ALREADY EXIST in the environment. No API reachable with a
+    Flow token can create and authenticate a brand new connection - that is a portal
+    action. If none is found this returns status "not_found" rather than failing.
+
+    Does NOT work on solution or portal-bound flows: their connections are Dataverse
+    connection references which cannot be minted here. Edit those in the portal.
+    """
+    candidates = (
+        {connection_name: {"connection_name": connection_name, "connector": connector}}
+        if connection_name
+        else {
+            cid: c
+            for cid, c in _discover_connections().items()
+            if c["connector"] == connector
+        }
+    )
+
+    if not candidates:
+        return {
+            "status": "not_found",
+            "connector": connector,
+            "message": (
+                f"No connection for '{connector}' is referenced by any flow in this "
+                "environment. Either it does not exist yet (create and authenticate it "
+                "in the maker portal - no API here can do that), or it exists but no "
+                "flow uses it yet, which makes it invisible to connection discovery."
+            ),
+        }
+    if len(candidates) > 1:
+        return {
+            "status": "ambiguous",
+            "connector": connector,
+            "candidates": list(candidates.values()),
+            "message": "Several connections match. Re-call with connection_name set to one of these.",
+        }
+
+    resolved = next(iter(candidates))
+    definition = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}")["properties"]["definition"]
+
+    _call(
+        "PATCH",
+        f"/environments/{ENV_ID}/flows/{flow_id}",
+        body={
+            "properties": {
+                "definition": definition,
+                "connectionReferences": {
+                    connector: {
+                        "connectionName": resolved,
+                        "source": "Embedded",
+                        "id": f"/providers/Microsoft.PowerApps/apis/{connector}",
+                    }
+                },
+            }
+        },
+    )
+
+    started = None
+    if start:
+        try:
+            _call("POST", f"/environments/{ENV_ID}/flows/{flow_id}/start")
+            started = True
+        except RuntimeError as exc:
+            started = f"bound, but start failed: {exc}"
+
+    bound = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}/connections")
+    bound_count = len(bound if isinstance(bound, list) else bound.get("value", []))
+
+    return {
+        "status": "bound",
+        "flow_id": flow_id,
+        "connector": connector,
+        "connection_name": resolved,
+        "connections_on_flow": bound_count,
+        "started": started,
+        "hint": "connections_on_flow should be >= 1. If it is 0 the flow is portal-bound and must be edited in the portal.",
+    }
+
+
+@mcp.tool()
 def run_flow(flow_id: str, trigger_name: str = "manual", inputs: Any = None) -> dict:
     """Trigger a flow now, without waiting for its schedule. You must own the flow.
 
@@ -401,6 +597,166 @@ def explain_run(flow_id: str, run_id: str) -> dict:
             if failed
             else "No action failed. If the run status is Failed, the trigger failed - inspect the trigger."
         ),
+    }
+
+
+@mcp.tool()
+def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") -> dict:
+    """Diff a failed run against a working one to find what changed.
+
+    Use this when explain_run gives you an error that is technically clear but does
+    not tell you WHY this run differed - intermittent failures, "it worked yesterday",
+    data-dependent bugs. The portal makes you open two runs in two tabs and eyeball
+    them side by side.
+
+    `baseline_run_id` is optional. Left empty, the tool finds the most recent
+    Succeeded run of the same flow and uses that.
+
+    Returns:
+      diverged_at      first action whose status differs - start here
+      status_changes   [{action, baseline, failed}] every action that behaved differently
+      output_changes   [{action, baseline, failed}] actions that succeeded in BOTH runs
+                       but produced different outputs. This is usually the real cause.
+      only_in_failed / only_in_baseline
+                       actions that ran in one and not the other, which means a
+                       condition or branch evaluated differently
+
+    If output_changes is empty and status_changes shows the same action failing both
+    times, the failure is deterministic and the fix is in the definition, not the data.
+    """
+    if not baseline_run_id:
+        succeeded = list_runs(flow_id, status="Succeeded", top=1)
+        if not succeeded:
+            return {
+                "status": "no_baseline",
+                "message": "This flow has no Succeeded run to compare against. Use explain_run instead.",
+            }
+        baseline_run_id = succeeded[0]["run_id"]
+
+    def actions_of(run_id: str) -> dict[str, dict]:
+        raw = _list(f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}/actions", cap=100)
+        return {a.get("name"): a.get("properties", {}) for a in raw}
+
+    failed, baseline = actions_of(failed_run_id), actions_of(baseline_run_id)
+
+    status_changes, output_changes = [], []
+    for name in [n for n in failed if n in baseline]:
+        f_status = failed[name].get("status")
+        b_status = baseline[name].get("status")
+        if f_status != b_status:
+            status_changes.append({"action": name, "baseline": b_status, "failed": f_status})
+        elif f_status == "Succeeded":
+            f_out = failed[name].get("outputsLink") or failed[name].get("outputs")
+            b_out = baseline[name].get("outputsLink") or baseline[name].get("outputs")
+            # outputsLink URIs differ per run by design; compare content size instead.
+            f_key = f_out.get("contentSize") if isinstance(f_out, dict) and "uri" in f_out else f_out
+            b_key = b_out.get("contentSize") if isinstance(b_out, dict) and "uri" in b_out else b_out
+            if f_key != b_key:
+                output_changes.append(
+                    {"action": name, "baseline": _trim(b_key), "failed": _trim(f_key)}
+                )
+
+    return {
+        "failed_run": failed_run_id,
+        "baseline_run": baseline_run_id,
+        "diverged_at": status_changes[0]["action"] if status_changes else None,
+        "status_changes": status_changes,
+        "output_changes": output_changes,
+        "only_in_failed": [n for n in failed if n not in baseline],
+        "only_in_baseline": [n for n in baseline if n not in failed],
+    }
+
+
+@mcp.tool()
+def analyze_flow_health(flow_id: str, last_n: int = 50, sample_failures: int = 5) -> dict:
+    """Analyse a flow's recent run history: reliability, failure patterns, duration.
+
+    Answers the questions a single run cannot: is this flow flaky or broken? Which
+    action fails most? Is it getting slower? The portal's analytics page shows counts
+    but will not tell you WHICH action is responsible or group failures by cause.
+
+    `last_n` runs are analysed for statistics. Because action-level detail costs one
+    request per run, only `sample_failures` of the failed runs are opened to attribute
+    causes. The response says how many were sampled - do not read the tally as exhaustive.
+
+    Returns:
+      total / succeeded / failed / cancelled / running
+      failure_rate     0.0 to 1.0 over completed runs only
+      duration_seconds {mean, p95, max} across successful runs
+      failing_actions  [{action, count, sample_error}] ranked, from the sampled failures
+      verdict          plain-language read of the numbers
+
+    A single action accounting for nearly all failures means a targeted fix. Failures
+    spread across many actions usually means the trigger data or a connection, not the logic.
+    """
+    runs = list_runs(flow_id, top=last_n)
+    if not runs:
+        return {"status": "no_runs", "message": "This flow has never run."}
+
+    tally = {"Succeeded": 0, "Failed": 0, "Cancelled": 0, "Running": 0}
+    for run in runs:
+        tally[run["status"]] = tally.get(run["status"], 0) + 1
+
+    completed = tally["Succeeded"] + tally["Failed"]
+    failure_rate = round(tally["Failed"] / completed, 3) if completed else 0.0
+
+    durations = sorted(
+        d
+        for d in (
+            _duration_seconds(r["start_time"], r["end_time"])
+            for r in runs
+            if r["status"] == "Succeeded"
+        )
+        if d is not None
+    )
+    duration_stats = (
+        {
+            "mean": round(sum(durations) / len(durations), 2),
+            "p95": round(durations[min(int(len(durations) * 0.95), len(durations) - 1)], 2),
+            "max": round(durations[-1], 2),
+        }
+        if durations
+        else None
+    )
+
+    # Attribute failures. Bounded: one request per sampled run.
+    failed_runs = [r for r in runs if r["status"] == "Failed"][:sample_failures]
+    causes: dict[str, dict] = {}
+    for run in failed_runs:
+        for action in _list(
+            f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run['run_id']}/actions", cap=100
+        ):
+            props = action.get("properties", {})
+            if props.get("status") != "Failed":
+                continue
+            name = action.get("name")
+            entry = causes.setdefault(name, {"action": name, "count": 0, "sample_error": None})
+            entry["count"] += 1
+            if entry["sample_error"] is None:
+                entry["sample_error"] = _resolve_error(props)
+
+    ranked = sorted(causes.values(), key=lambda c: c["count"], reverse=True)
+
+    if not completed:
+        verdict = "No completed runs yet."
+    elif failure_rate == 0:
+        verdict = f"Healthy. {tally['Succeeded']} of {tally['Succeeded']} completed runs succeeded."
+    elif failure_rate >= 0.9:
+        verdict = f"Broken, not flaky: {int(failure_rate * 100)}% of runs fail. Fix the definition."
+    elif ranked and ranked[0]["count"] >= max(1, len(failed_runs) * 0.8):
+        verdict = f"Flaky, concentrated in '{ranked[0]['action']}' - that one action explains almost every failure."
+    else:
+        verdict = f"Flaky, {int(failure_rate * 100)}% failure rate, spread across actions. Suspect trigger data or a connection rather than logic."
+
+    return {
+        "flow_id": flow_id,
+        "runs_analysed": len(runs),
+        **tally,
+        "failure_rate": failure_rate,
+        "duration_seconds": duration_stats,
+        "failures_sampled": len(failed_runs),
+        "failing_actions": ranked,
+        "verdict": verdict,
     }
 
 

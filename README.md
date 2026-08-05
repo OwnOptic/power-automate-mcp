@@ -1,7 +1,7 @@
 # power-automate-mcp
 
 **An MCP server that lets Claude create, run, and debug your Power Automate flows.**
-One file. Seven tools. Built as a teaching artifact for a community talk on why you
+One file. Ten tools. Built as a teaching artifact for a community talk on why you
 should build your own MCP servers instead of waiting for someone to ship you one.
 
 ```
@@ -30,6 +30,18 @@ should build your own MCP servers instead of waiting for someone to ship you one
 That entire loop is four tool calls the model chose on its own, because the tools
 tell it what they are for.
 
+And when the error is clear but the *reason* is not:
+
+```
+> This flow works most days. Why did it fail last night?
+
+  compare_runs        -> diverged at Compute_batches, but Load_settings emitted
+                         batch_size: 0 where the working run emitted 4.
+                         Symptom and cause are different actions.
+  analyze_flow_health -> 18% failure rate over 50 runs, 5 of 5 sampled failures
+                         all in Get_items. Flaky and concentrated, not broken.
+```
+
 ---
 
 ## Table of contents
@@ -57,8 +69,8 @@ Every useful MCP server is four layers. Only two of them are interesting.
 | --- | --- | --- | --- |
 | **1. Auth** | Get a token | ~45 | Claude, in one prompt |
 | **2. Transport** | Call, retry, paginate | ~50 | Claude, in one prompt |
-| **3. Shaping** | Turn API JSON into model-readable JSON | ~60 | **You. This is the work.** |
-| **4. Docstrings** | Teach the model what the API will not | ~120 | **You. This is the moat.** |
+| **3. Shaping** | Turn API JSON into model-readable JSON | ~160 | **You. This is the work.** |
+| **4. Docstrings** | Teach the model what the API will not | ~200 | **You. This is the moat.** |
 
 Wrapping an API is not the point, and it is precisely the part you can automate.
 The value is in deciding what to hand the model, and in writing down what you
@@ -335,6 +347,14 @@ this repo is arguing for.
 
 ## Tool reference
 
+Ten tools in three groups.
+
+| Group | Tools |
+| --- | --- |
+| **Author** | `list_flows`, `get_flow`, `create_flow`, `update_flow_definition`, `bind_connection` |
+| **Operate** | `run_flow`, `list_runs` |
+| **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` |
+
 ### `list_flows(state="", top=25)`
 
 List flows in the environment.
@@ -388,6 +408,37 @@ Replace a flow's definition. Send the complete definition, not a fragment.
 ```
 
 Does not work on portal-bound flows. See [Gotchas](#gotchas-this-server-encodes).
+
+### `bind_connection(flow_id, connector, connection_name="", start=True)`
+
+Bind an existing connection to a flow and start it. **The missing step of `create_flow`.**
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `flow_id` | str | required | The flow to bind. |
+| `connector` | str | required | Logical name, e.g. `shared_office365`, `shared_teams`. |
+| `connection_name` | str | `""` | Concrete connection id. Empty means auto-resolve. |
+| `start` | bool | `True` | Start the flow once bound. |
+
+`create_flow` returns 201 but leaves `connectionReferences` empty, so a connector
+flow cannot be started. Binding is a separate PATCH that must carry both the full
+definition *and* the connection reference. This tool does the whole sequence in one
+call: resolve the connection, PATCH definition plus reference, start the flow.
+
+Returns one of four statuses:
+
+| `status` | Meaning |
+| --- | --- |
+| `bound` | Success. Check `connections_on_flow` is at least 1. |
+| `ambiguous` | Several connections match this connector. Candidates returned; re-call with `connection_name`. |
+| `not_found` | No connection for this connector is visible. Create it in the portal first. |
+| (raises) | Portal-bound flow, or the flow does not exist. |
+
+It deliberately does **not** guess when several connections match, because binding
+the wrong account is a silent failure you would discover in production.
+
+> The connection must already exist. No API reachable with a Flow token can create
+> and authenticate a new connection. That is a portal action, permanently.
 
 ### `run_flow(flow_id, trigger_name="manual", inputs=None)`
 
@@ -451,6 +502,77 @@ If `failed_actions` is empty while `status` is `Failed`, the failure was in the
 > SAS URLs expire. Debugging a run from several days ago may return
 > `[error blob unavailable]`. Re-run the flow to produce a fresh failure.
 
+### `compare_runs(flow_id, failed_run_id, baseline_run_id="")`
+
+Diff a failed run against a working one.
+
+Use this when `explain_run` gives you an error that is technically clear but does not
+explain why *this* run differed: intermittent failures, "it worked yesterday",
+data-dependent bugs. `baseline_run_id` is optional; left empty the tool finds the
+most recent `Succeeded` run itself.
+
+```json
+{
+  "failed_run": "08d8...",
+  "baseline_run": "08d7...",
+  "diverged_at": "Compute_batches",
+  "status_changes": [
+    { "action": "Compute_batches", "baseline": "Succeeded", "failed": "Failed" }
+  ],
+  "output_changes": [
+    { "action": "Load_settings", "baseline": {"batch_size": 4}, "failed": {"batch_size": 0} }
+  ],
+  "only_in_failed": [],
+  "only_in_baseline": []
+}
+```
+
+Read it in this order: `diverged_at` tells you where the run broke, and
+`output_changes` usually tells you *why*. Above, the run diverged at
+`Compute_batches` but the cause is upstream in `Load_settings`, whose output changed
+from 4 to 0. Symptom and cause are different actions, which is the normal case.
+
+`only_in_failed` and `only_in_baseline` being non-empty means a condition or branch
+evaluated differently between the two runs.
+
+> If `output_changes` is empty and the same action failed in both runs, the failure is
+> deterministic. The fix is in the definition, not the data.
+
+Output comparison uses `contentSize` when outputs are behind a `outputsLink` URI,
+since the URIs themselves differ per run by design and would otherwise always
+compare as changed.
+
+### `analyze_flow_health(flow_id, last_n=50, sample_failures=5)`
+
+Analyse recent run history: reliability, failure patterns, duration.
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `last_n` | int | `50` | Runs included in the statistics. |
+| `sample_failures` | int | `5` | Failed runs opened for action-level attribution. |
+
+```json
+{
+  "runs_analysed": 50,
+  "Succeeded": 41, "Failed": 9, "Cancelled": 0, "Running": 0,
+  "failure_rate": 0.18,
+  "duration_seconds": { "mean": 4.21, "p95": 11.80, "max": 14.02 },
+  "failures_sampled": 5,
+  "failing_actions": [
+    { "action": "Get_items", "count": 5, "sample_error": "The response is not in a JSON format." }
+  ],
+  "verdict": "Flaky, concentrated in 'Get_items' - that one action explains almost every failure."
+}
+```
+
+Action-level detail costs one request per run, so only `sample_failures` of the failed
+runs are opened. **`failing_actions` is a sample, not an exhaustive tally**, and the
+response states how many runs it came from so you can see that for yourself.
+
+The `verdict` distinguishes the two cases that call for different responses: failures
+concentrated in one action mean a targeted fix, while failures spread across many
+actions usually mean the trigger data or a connection rather than the logic.
+
 ---
 
 ## Gotchas this server encodes
@@ -504,6 +626,10 @@ already exists in the environment:
 2. `update_flow_definition(flow_id, definition, connection_references={...})`
 3. Start the flow
 
+**`bind_connection` does all three in one call**, which is exactly the kind of thing
+your own MCP server should absorb. An API that requires a three-step dance to reach a
+working state is an API whose tool layer should expose the destination, not the dance.
+
 Nothing in any of these APIs can create and authenticate a brand new connection.
 Make that one in the portal first.
 
@@ -522,13 +648,41 @@ here:
 Edit those flows in the portal. Headless creation plus binding works only for flows
 whose connections you also created here.
 
-### 5. Never inline a secret in a definition
+### 5. There is no environment-wide connections endpoint you can reach
+
+This one is worth reading even if you never touch Power Automate, because it is the
+purest example of why a hand-built tool layer beats a generated one.
+
+To bind a connection you need its `connectionName`. The obvious way to get it is to
+list the environment's connections. You cannot:
+
+- `/environments/{env}/connections` returns **404** under the `Microsoft.ProcessSimple`
+  provider **and** under `Microsoft.PowerApps`
+- the route that does work lives on a different host entirely,
+  `https://api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections`
+- calling it with a `service.flow.microsoft.com` token returns **403 InvalidPath**,
+  because it needs an `aud=service.powerapps.com` token, meaning a second app
+  registration and a second admin consent
+
+The per-flow route `/environments/{env}/flows/{flow_id}/connections` *does* work. So
+this server discovers connections by walking the environment's flows and unioning what
+they reference.
+
+The trade-off is real and is documented rather than hidden: **a connection that no flow
+uses yet is invisible.** For the question that actually matters, "is connector X already
+connected here and what is its `connectionName`", any bindable connection is normally
+referenced by at least one flow.
+
+No code generator produces that workaround. It only exists because someone hit the 404,
+then hit the 403, then found the flow-scoped route.
+
+### 6. Never inline a secret in a definition
 
 Flow definitions are stored in plaintext on the flow artifact. An API key written
 into a definition is readable by anyone with access to the flow. Use a Power
 Platform environment variable or a Key Vault reference and resolve it at runtime.
 
-### 6. Look connector operationIds up, do not guess them
+### 7. Look connector operationIds up, do not guess them
 
 Connector actions need the exact `operationId` and the exact parameter names.
 Guessing produces a flow that saves cleanly and fails at runtime, which is the
@@ -584,22 +738,25 @@ Adding a tool takes three steps.
 
 ```python
 @mcp.tool()
-def list_connections() -> list[dict]:
-    """List connections in the environment.
+def resubmit_run(run_id: str, flow_id: str) -> dict:
+    """Re-run a failed run with its ORIGINAL trigger payload.
 
-    Returns connection_id, display_name, connector, status. Use connection_id as
-    `connectionName` in update_flow_definition's connection_references.
+    Different from run_flow: this replays the exact data that caused the failure,
+    which is what you want after fixing a definition. run_flow starts a fresh run
+    with no payload and will not reproduce the case you just fixed.
 
-    Status 'Error' means the connection needs re-authentication in the portal;
-    flows using it will fail at runtime with a ConnectionAuthorizationFailed error.
+    Returns a new run_id. Poll list_runs, then explain_run if it fails again.
     """
-    items = _list(f"/environments/{ENV_ID}/connections")
-    return [_connection_summary(c) for c in items]
+    return _call("POST", f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}/resubmit")
 ```
 
-Natural next additions, roughly in order of usefulness: `list_connections`,
-`list_environments`, `resubmit_run`, `delete_flow`, `get_trigger_url`,
-`list_solutions`.
+Note what that docstring spends its words on: not what the tool does, but **when to
+use it instead of the tool next to it.** Disambiguating two similar tools is the
+highest-value sentence you can write, because choosing wrong between them is the
+mistake a model actually makes.
+
+Natural next additions, roughly in order of usefulness: `resubmit_run`,
+`list_environments`, `get_trigger_url`, `delete_flow`, `list_solutions`.
 
 ---
 
@@ -617,6 +774,10 @@ Natural next additions, roughly in order of usefulness: `list_connections`,
 | Create returns 400 about `$authentication` | Magic parameters missing | See [gotcha 2](#2-connector-flows-need-the-two-magic-parameters) |
 | `CannotStartUnpublishedSolutionFlow` | Connections not bound | See [gotcha 3](#3-creating-a-flow-does-not-bind-its-connections) |
 | `explain_run` returns `[error blob unavailable]` | SAS URL expired | Re-run the flow and debug the fresh failure |
+| `bind_connection` returns `not_found` | Connection does not exist, or no flow references it yet | Create and authenticate it in the portal, or use it on one flow first |
+| `bind_connection` returns `ambiguous` | Several connections for that connector | Re-call with `connection_name` set to one of the returned candidates |
+| `bind_connection` succeeds but `connections_on_flow` is 0 | Flow is solution or portal-bound | Edit that flow in the portal, see [gotcha 4](#4-portal-bound-flows-cannot-be-updated-through-this-api) |
+| `analyze_flow_health` returns `duration_seconds: null` | No successful runs to measure | Expected on a flow that has never succeeded |
 | `@triggerBody()` is null when using `run_flow` | Management endpoint does not forward bodies | Call the flow's real HTTP trigger URL instead |
 | Stuck asking for a device code repeatedly | Corrupt token cache | Delete `.token_cache.json` and sign in again |
 
@@ -638,19 +799,21 @@ Natural next additions, roughly in order of usefulness: `list_connections`,
   change real state with no confirmation step. If you want this in a production
   tenant, split the read tools and write tools into two servers and connect the
   write server only when you mean it.
-- **Never inline secrets in flow definitions.** See gotcha 5.
+- **Never inline secrets in flow definitions.** See
+  [gotcha 6](#6-never-inline-a-secret-in-a-definition).
 
 ---
 
 ## What is deliberately missing
 
 This is a teaching artifact, not a complete client. Left out on purpose: environment
-discovery, connection listing and binding, solution-bound flow editing, HTTP trigger
-URL retrieval, resubmit and cancel, run analytics, desktop flows, and approvals.
+discovery, solution-bound flow editing, HTTP trigger URL retrieval, resubmit and
+cancel, desktop flows, and approvals.
 
-Seven tools is the number that fits in a talk. The production server this was
-extracted from runs twenty-one Power Automate tools alongside Microsoft Graph and
-Teams, and it is the same four layers throughout.
+Ten tools is about the number that fits in a talk while still covering a real loop:
+author, bind, run, diagnose. The production server this was extracted from runs
+twenty-one Power Automate tools alongside Microsoft Graph and Teams, and it is the
+same four layers throughout.
 
 ---
 
