@@ -1,0 +1,22 @@
+# Credentials and cached tokens - NEVER commit these
+.env
+.token_cache.json
+*.token_cache.json
+
+# Personal talk notes - names a specific demo tenant, stays local
+DEMO-RUNSHEET.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

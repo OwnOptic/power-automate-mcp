@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": { "defaultValue": {}, "type": "Object" },
+    "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Button",
+      "inputs": { "schema": {} }
+    }
+  },
+  "actions": {
+    "Load_settings": {
+      "type": "Compose",
+      "runAfter": {},
+      "inputs": {
+        "region": "westeurope",
+        "retries": 3,
+        "batch_size": 0
+      }
+    },
+    "Compute_batches": {
+      "type": "Compose",
+      "runAfter": { "Load_settings": ["Succeeded"] },
+      "inputs": "@div(120, outputs('Load_settings')['batch_size'])"
+    }
+  }
+}
