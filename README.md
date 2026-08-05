@@ -142,16 +142,46 @@ That gap is the entire argument for building your own MCP server.
 
 - Python 3.10 or later
 - A Power Platform environment you can create flows in
-- Permission to register an app in your Microsoft Entra tenant (or an admin who will)
+- A client ID consented for the Flow audience. You may already have one; see
+  [step 1](#1-a-client-id-consented-for-the-flow-audience) before assuming you need
+  to register anything
 - An MCP client: Claude Code, Claude Desktop, or anything else that speaks MCP
 
 > **Use a demo or development tenant.** This server creates, edits, and runs real
 > flows with your delegated permissions. It can do anything you can do.
 
-### 1. App registration
+### 1. A client ID consented for the Flow audience
 
-The Power Automate management API is not covered by any Microsoft-managed public
-client, so you need your own app registration. It takes about three minutes.
+What this server needs is not "an app registration" as such. It needs **a client ID
+already consented for the `https://service.flow.microsoft.com` audience**. Registering
+your own app is the reliable way to get one. It is not the only way, and you may not
+need to.
+
+**You may already have one.** Microsoft first-party public clients (the Azure CLI, the
+`Microsoft.PowerApps.PowerShell` module, and others) come pre-consented for various
+audiences. That is why `Add-PowerAppsAccount` followed by `Get-Flow` lists your own
+flows with no registration anywhere. If a first-party client in your tenant is
+authorized for the Flow audience, put its ID in `PA_CLIENT_ID` and skip the rest of
+this section.
+
+Check in one command, with the Azure CLI signed in to the tenant you care about:
+
+```bash
+az account get-access-token --resource "https://service.flow.microsoft.com/" --query expiresOn -o tsv
+```
+
+A timestamp means that route works for you. A consent error such as `AADSTS65001`
+means it does not.
+
+**Being first-party is not sufficient, which is why the answer is tenant-specific.**
+Microsoft's own Work IQ CLI app (`ba081686-5d24-4bc6-a0d6-d034ecffed87`) does *not*
+carry `service.flow.microsoft.com` in its allowed resources, and cannot be extended
+because Microsoft owns it. Conditional Access and pre-authorization policies vary too.
+Test, do not assume.
+
+**Registering your own app** is the portable answer. It works in any tenant where you
+can get consent and does not depend on someone else's pre-authorization continuing to
+hold. It takes about three minutes.
 
 In the [Microsoft Entra admin center](https://entra.microsoft.com):
 
