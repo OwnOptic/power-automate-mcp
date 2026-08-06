@@ -78,7 +78,7 @@ Every useful MCP server is four layers. Only two of them are interesting.
 flowchart TB
     subgraph gen["Generated in one prompt"]
         direction TB
-        L1["Layer 1 - Auth<br/>MSAL device code, token cached to disk<br/>~45 lines"]
+        L1["Layer 1 - Auth<br/>borrow the az CLI token, or MSAL device code<br/>~110 lines"]
         L2["Layer 2 - Transport<br/>retry 401 / 429 / 5xx, follow nextLink<br/>~50 lines"]
         L1 --> L2
     end
@@ -191,46 +191,46 @@ That gap is the entire argument for building your own MCP server.
 
 - Python 3.10 or later
 - A Power Platform environment you can create flows in
-- A client ID consented for the Flow audience. You may already have one; see
-  [step 1](#1-a-client-id-consented-for-the-flow-audience) before assuming you need
-  to register anything
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), signed in
+  with `az login`. That is normally the entire auth story - see
+  [step 1](#1-authentication-az-login-is-usually-all-you-need) before assuming you
+  need to register anything
 - An MCP client: Claude Code, Claude Desktop, or anything else that speaks MCP
 
 > **Use a demo or development tenant.** This server creates, edits, and runs real
 > flows with your delegated permissions. It can do anything you can do.
 
-### 1. A client ID consented for the Flow audience
+### 1. Authentication: `az login` is usually all you need
 
-What this server needs is not "an app registration" as such. It needs **a client ID
-already consented for the `https://service.flow.microsoft.com` audience**. Registering
-your own app is the reliable way to get one. It is not the only way, and you may not
-need to.
+**You probably do not need to register anything.**
 
-**You may already have one.** Microsoft first-party public clients (the Azure CLI, the
-`Microsoft.PowerApps.PowerShell` module, and others) come pre-consented for various
-audiences. That is why `Add-PowerAppsAccount` followed by `Get-Flow` lists your own
-flows with no registration anywhere. If a first-party client in your tenant is
-authorized for the Flow audience, put its ID in `PA_CLIENT_ID` and skip the rest of
-this section.
-
-Check in one command, with the Azure CLI signed in to the tenant you care about:
+What this server needs is a token for the `https://service.flow.microsoft.com`
+audience. The Azure CLI is itself a Microsoft first-party app, already consented in
+most tenants, and it will hand you one. So the default path is:
 
 ```bash
-az account get-access-token --resource "https://service.flow.microsoft.com/" --query expiresOn -o tsv
+az login
 ```
 
-A timestamp means that route works for you. A consent error such as `AADSTS65001`
-means it does not.
+That is the whole setup. Leave `PA_CLIENT_ID` unset and the server borrows the CLI's
+token, resolving your default environment from whatever tenant the CLI is signed in
+to. No app registration, no admin consent, no device code.
 
-**Being first-party is not sufficient, which is why the answer is tenant-specific.**
+This is the same trick the `Microsoft.PowerApps.PowerShell` module uses when
+`Add-PowerAppsAccount` followed by `Get-Flow` lists your flows without you
+registering anything.
+
+<details>
+<summary><b>Option B: your own app registration</b> (when the CLI route is blocked)</summary>
+
+Being first-party is not automatically sufficient, which is why this is tenant-specific.
 Microsoft's own Work IQ CLI app (`ba081686-5d24-4bc6-a0d6-d034ecffed87`) does *not*
-carry `service.flow.microsoft.com` in its allowed resources, and cannot be extended
+carry `service.flow.microsoft.com` in its allowed resources and cannot be extended,
 because Microsoft owns it. Conditional Access and pre-authorization policies vary too.
-Test, do not assume.
 
-**Registering your own app** is the portable answer. It works in any tenant where you
-can get consent and does not depend on someone else's pre-authorization continuing to
-hold. It takes about three minutes.
+You want your own registration when `az login` is refused for the Flow audience
+(a consent error such as `AADSTS65001`), or when the machine has no Azure CLI.
+Setting `PA_CLIENT_ID` switches the server to device-code auth automatically.
 
 In the [Microsoft Entra admin center](https://entra.microsoft.com):
 
@@ -258,7 +258,9 @@ In the [Microsoft Entra admin center](https://entra.microsoft.com):
 4. **Grant admin consent** for your organization.
 
 5. From **Overview**, copy the **Application (client) ID** and the
-   **Directory (tenant) ID**.
+   **Directory (tenant) ID**. Put them in `PA_CLIENT_ID` and `PA_TENANT_ID`.
+
+</details>
 
 ### 2. Install
 
@@ -272,23 +274,30 @@ Four dependencies: `mcp`, `msal`, `httpx`, `python-dotenv`.
 
 ### 3. Configure
 
-```bash
-cp .env.example .env
-```
+**On the `az login` path there is nothing to configure.** Every variable is optional;
+the server resolves your tenant and default environment from the Azure CLI. Skip to
+step 4.
 
-Fill in the two GUIDs you copied:
+To target a specific environment, or to use your own app registration, copy
+`.env.example` to `.env`:
 
 ```ini
-PA_CLIENT_ID=<Application (client) ID>
-PA_TENANT_ID=<Directory (tenant) ID>
-# Optional. Defaults to Default-<PA_TENANT_ID>.
+# All optional.
+# Unset PA_CLIENT_ID = az mode. Set it = device-code mode.
+# PA_CLIENT_ID=<Application (client) ID>
+# PA_TENANT_ID=<Directory (tenant) ID>
+
+# Target a specific environment instead of the tenant default.
 # PA_ENV_ID=Default-00000000-0000-0000-0000-000000000000
 ```
 
-Neither value is a secret. There is no client secret in this design: it is a
-public client using delegated device-code auth, so the only credential involved is
-the refresh token MSAL caches locally in `.token_cache.json`. Both that file and
-`.env` are gitignored.
+Which mode you are in is visible at a glance: `AUTH_MODE` is `az` unless
+`PA_CLIENT_ID` is set.
+
+Neither value is a secret. There is no client secret in this design at all: both
+modes are public-client delegated auth. The only credential involved is a refresh
+token, held by the Azure CLI in az mode, or cached in `.token_cache.json` in
+device-code mode. That file and `.env` are both gitignored.
 
 **Finding your environment ID.** The default environment is `Default-<tenant-id>`
 and is used automatically. To target a different one, open
@@ -317,7 +326,16 @@ environment, and read the GUID out of the URL.
 Use an absolute path to `server.py`. The server resolves `.env` relative to its own
 file, so the working directory does not matter.
 
-### 5. First run: sign in once
+### 5. Sign in
+
+**az mode:** you already did, with `az login`. Nothing further.
+
+The CLI's own refresh token is subject to your tenant's Conditional Access policy,
+so a long-lived session can expire on you. If a tool starts returning
+`AADSTS70043 token_expired`, run `az login` again.
+
+<details>
+<summary><b>Device-code mode</b> (only when PA_CLIENT_ID is set)</summary>
 
 The first tool call triggers device-code auth. A message like this appears in the
 MCP server log:
@@ -332,6 +350,8 @@ Open the page, paste the code, sign in. MSAL then writes a refresh token to
 
 > If you cannot see the server log, run `python server.py` directly in a terminal
 > once to complete the sign-in, then start it through your MCP client.
+
+</details>
 
 ### 6. Verify
 
@@ -358,19 +378,31 @@ demo-flow.json, then run it and tell me what happened.
 The whole server is [`server.py`](server.py), deliberately kept in one file so it
 can be read top to bottom in a few minutes. The four layers appear in order.
 
-### Layer 1: Auth (`_client`, `_token`)
+### Layer 1: Auth (`_az_access_token`, `_client`, `_token`)
 
-MSAL public client, device code flow, token cached to disk. About 45 lines and
-nothing in it is Power Automate specific. Change `SCOPES` and this is a Microsoft
-Graph client, or a Dataverse client, or an Azure Resource Manager client.
+Two token sources behind one `_token()`, selected by whether `PA_CLIENT_ID` is set.
+Nothing in it is Power Automate specific. Change `PA_RESOURCE` and this is a
+Microsoft Graph client, or a Dataverse client, or an Azure Resource Manager client.
 
 ```python
-SCOPES = ["https://service.flow.microsoft.com/.default"]
+PA_RESOURCE = "https://service.flow.microsoft.com"
+SCOPES = [f"{PA_RESOURCE}/.default"]
+AUTH_MODE = "msal" if CLIENT_ID else "az"
 ```
 
-The `/.default` form means "whatever this app registration has already been
-consented for", which avoids `AADSTS65001` errors from requesting individual
-scopes that lack consent.
+The `/.default` form means "whatever this client has already been consented for",
+which avoids `AADSTS65001` errors from requesting individual scopes that lack consent.
+
+**az mode is the interesting one, and it is four lines of real work:** shell out to
+`az account get-access-token --resource <audience>`, cache the result, done. You are
+borrowing a Microsoft first-party app that your tenant already trusts, which removes
+the registration, the consent, and the device-code dance in one move. When you build
+an MCP server against any Azure-fronted API, try this before you go near the Entra
+portal.
+
+The trade-off is that the Azure CLI's session lives under your tenant's Conditional
+Access policy, so it can expire mid-session in a way an MSAL cache would not. Hence
+both modes existing rather than only the convenient one.
 
 One design note worth copying: **the MSAL client is built lazily, not at import.**
 MSAL performs OIDC discovery against the tenant when you construct it, so building
@@ -921,7 +953,9 @@ Natural next additions, roughly in order of usefulness: `resubmit_run`,
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Server fails to start, no tools appear | Missing `.env`, or `PA_CLIENT_ID` / `PA_TENANT_ID` unset | Copy `.env.example` to `.env` and fill both GUIDs |
+| `AADSTS70043 token_expired` | Azure CLI session aged out under a Conditional Access sign-in-frequency policy | `az login` again |
+| `Azure CLI call failed ... az: command not found` | No Azure CLI on this machine | Install it, or set `PA_CLIENT_ID` to use device-code mode instead |
+| Tools work but hit the wrong tenant | `az` is signed in somewhere else | `az account show` to check, `az login --tenant <id>` to move |
 | `AADSTS7000218` or device flow returns no `user_code` | Public client flows disabled | Entra > your app > Authentication > Allow public client flows: **Yes** |
 | `AADSTS65001` consent error | App permissions not admin-consented | Grant admin consent on the app registration |
 | `AADSTS90002 Tenant not found` | Wrong `PA_TENANT_ID` | Copy the Directory (tenant) ID from the app's Overview page |
@@ -942,10 +976,10 @@ Natural next additions, roughly in order of usefulness: `resubmit_run`,
 
 ## Security
 
-- **No client secret.** This is a public client using delegated device-code auth.
-  The only credential at rest is the MSAL refresh token in `.token_cache.json`,
-  which is gitignored. Treat that file like a password: it grants your Power
-  Automate access to anyone who holds it.
+- **No client secret, in either mode.** In az mode the credential at rest belongs to
+  the Azure CLI and this repo never touches it. In device-code mode it is the MSAL
+  refresh token in `.token_cache.json`, which is gitignored. Treat that file like a
+  password: it grants your Power Automate access to anyone who holds it.
 - **The server acts as you.** Every call uses your delegated permissions, so it can
   do anything you can do in that environment, including deleting work. Point it at
   a demo tenant.

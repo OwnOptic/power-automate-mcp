@@ -1,6 +1,6 @@
 """pa-demo-mcp - a minimal Power Automate MCP server, built for a community call.
 
-Seven tools. One file. No framework beyond the official MCP SDK.
+Ten tools. One file. No framework beyond the official MCP SDK.
 
 The point of this server is NOT to be complete - the real one I run daily has 21
 Power Automate tools. The point is to show the four layers every useful MCP has,
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -43,18 +44,96 @@ mcp = FastMCP("pa-demo")
 
 # ---------------------------------------------------------------------------
 # LAYER 1 - AUTH
-# Delegated device-code auth. Runs once, then MSAL caches the refresh token to
-# disk and you are silent for ~90 days. Nothing here is Power Automate specific;
-# swap the scope and this is a Graph client, or a Dataverse client.
+# Two ways to get a delegated token, auto-selected:
+#
+#   az mode (default)  - borrow the Azure CLI's own token. You register NOTHING;
+#                        the CLI is itself a Microsoft first-party app that is
+#                        already consented in most tenants. `az login` and go.
+#   msal mode          - device code against a client id you supply. Needed when
+#                        your tenant has not authorised the CLI for the Flow
+#                        audience, and portable to machines with no Azure CLI.
+#
+# Set PA_CLIENT_ID to force msal mode. Leave it unset to use az.
+#
+# Nothing here is Power Automate specific; swap PA_RESOURCE and this is a Graph
+# client, or a Dataverse client.
 # ---------------------------------------------------------------------------
 
-CLIENT_ID = os.environ["PA_CLIENT_ID"]          # your app registration (public client)
-TENANT_ID = os.environ["PA_TENANT_ID"]
-ENV_ID = os.environ.get("PA_ENV_ID") or f"Default-{TENANT_ID}"
+PA_RESOURCE = "https://service.flow.microsoft.com"
 
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPES = ["https://service.flow.microsoft.com/.default"]
+CLIENT_ID = os.environ.get("PA_CLIENT_ID", "").strip()
+TENANT_ID = os.environ.get("PA_TENANT_ID", "").strip()
+AUTH_MODE = "msal" if CLIENT_ID else "az"
+
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else ""
+SCOPES = [f"{PA_RESOURCE}/.default"]
 CACHE_PATH = HERE / ".token_cache.json"
+
+
+def _az(args: list[str]) -> str:
+    """Run an Azure CLI command and return stdout.
+
+    shell=True because on Windows `az` is a .cmd shim that CreateProcess will not
+    resolve on its own. The arguments here are all internal constants, never
+    user-supplied free text.
+    """
+    cmd = "az " + " ".join(f'"{a}"' if " " in a else a for a in args)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True)
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout).strip()[:400]
+        raise RuntimeError(
+            f"Azure CLI call failed ({cmd}): {err}\n"
+            "Run `az login` against the tenant you want, or set PA_CLIENT_ID to use "
+            "device-code auth with your own app registration instead."
+        )
+    out = proc.stdout.strip()
+    if not out:
+        raise RuntimeError(f"Azure CLI returned nothing for: {cmd}")
+    return out
+
+
+_az_token_cache: tuple[str, float] | None = None
+
+
+def _az_access_token(force: bool = False) -> str:
+    """Mint a Flow-audience token via the Azure CLI, cached in-process.
+
+    The CLI caches its own refresh token, so this is cheap after the first call.
+    A conservative 45-minute cache avoids shelling out on every request; the 401
+    retry in _call forces a refresh if the token dies earlier than expected.
+    """
+    global _az_token_cache
+    if _az_token_cache and not force and _az_token_cache[1] - time.time() > 120:
+        return _az_token_cache[0]
+    token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
+                 "--query", "accessToken", "-o", "tsv"])
+    _az_token_cache = (token, time.time() + 45 * 60)
+    return token
+
+
+_env_id: str | None = None
+
+
+def env_id() -> str:
+    """The environment to operate on, resolved once.
+
+    PA_ENV_ID wins. Otherwise the tenant's default environment, with the tenant id
+    taken from PA_TENANT_ID or, failing that, from whatever the Azure CLI is
+    signed in to. Resolved lazily so the server still starts when az is not logged
+    in - you get a readable error inside a tool result instead of a dead server.
+    """
+    global _env_id
+    if _env_id is None:
+        explicit = os.environ.get("PA_ENV_ID", "").strip()
+        if explicit:
+            _env_id = explicit
+        else:
+            tenant = TENANT_ID or _az(["account", "show", "--query", "tenantId", "-o", "tsv"])
+            _env_id = f"Default-{tenant}"
+    return _env_id
+
+
+# --- msal mode only, from here to _token() ---------------------------------
 
 _cache = msal.SerializableTokenCache()
 if CACHE_PATH.exists():
@@ -84,7 +163,10 @@ def _client() -> msal.PublicClientApplication:
 
 
 def _token(force: bool = False) -> str:
-    """Return a bearer token, refreshing silently when possible."""
+    """Return a bearer token from whichever auth mode is active."""
+    if AUTH_MODE == "az":
+        return _az_access_token(force=force)
+
     app = _client()
     accounts = app.get_accounts()
     if accounts and not force:
@@ -285,7 +367,7 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
 
     Costs one request per flow, hence max_flows.
     """
-    flows = _list(f"/environments/{ENV_ID}/flows", params={"$top": max_flows}, cap=max_flows)
+    flows = _list(f"/environments/{env_id()}/flows", params={"$top": max_flows}, cap=max_flows)
     found: dict[str, dict] = {}
 
     for flow in flows:
@@ -293,7 +375,7 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
         if not flow_id:
             continue
         try:
-            raw = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}/connections")
+            raw = _call("GET", f"/environments/{env_id()}/flows/{flow_id}/connections")
         except RuntimeError:
             continue  # one unreadable flow must not sink the whole scan
         items = raw if isinstance(raw, list) else raw.get("value", [])
@@ -335,7 +417,7 @@ def list_flows(state: str = "", top: int = 25) -> list[dict]:
     state filters client-side on 'Started' or 'Stopped'; leave empty for all.
     Returns flow_id, display_name, state, modified. Use flow_id with every other tool.
     """
-    flows = [_flow_summary(f) for f in _list(f"/environments/{ENV_ID}/flows", cap=top)]
+    flows = [_flow_summary(f) for f in _list(f"/environments/{env_id()}/flows", cap=top)]
     return [f for f in flows if not state or f["state"] == state]
 
 
@@ -347,7 +429,7 @@ def get_flow(flow_id: str) -> dict:
     Call this before update_flow_definition: the API has no partial update, so you
     must send the whole definition back, modified.
     """
-    raw = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}")
+    raw = _call("GET", f"/environments/{env_id()}/flows/{flow_id}")
     return _flow_summary(raw, with_definition=True)
 
 
@@ -386,7 +468,7 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> dict
     than guessing them. Guessing produces a flow that saves fine and fails at runtime.
     """
     body = {"properties": {"displayName": display_name, "state": "Started" if start else "Stopped", "definition": definition}}
-    return _flow_summary(_call("POST", f"/environments/{ENV_ID}/flows", body=body))
+    return _flow_summary(_call("POST", f"/environments/{env_id()}/flows", body=body))
 
 
 @mcp.tool()
@@ -409,7 +491,7 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
     props: dict[str, Any] = {"definition": definition}
     if connection_references:
         props["connectionReferences"] = connection_references
-    return _flow_summary(_call("PATCH", f"/environments/{ENV_ID}/flows/{flow_id}", body={"properties": props}))
+    return _flow_summary(_call("PATCH", f"/environments/{env_id()}/flows/{flow_id}", body={"properties": props}))
 
 
 @mcp.tool()
@@ -476,11 +558,11 @@ def bind_connection(
         }
 
     resolved = next(iter(candidates))
-    definition = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}")["properties"]["definition"]
+    definition = _call("GET", f"/environments/{env_id()}/flows/{flow_id}")["properties"]["definition"]
 
     _call(
         "PATCH",
-        f"/environments/{ENV_ID}/flows/{flow_id}",
+        f"/environments/{env_id()}/flows/{flow_id}",
         body={
             "properties": {
                 "definition": definition,
@@ -498,12 +580,12 @@ def bind_connection(
     started = None
     if start:
         try:
-            _call("POST", f"/environments/{ENV_ID}/flows/{flow_id}/start")
+            _call("POST", f"/environments/{env_id()}/flows/{flow_id}/start")
             started = True
         except RuntimeError as exc:
             started = f"bound, but start failed: {exc}"
 
-    bound = _call("GET", f"/environments/{ENV_ID}/flows/{flow_id}/connections")
+    bound = _call("GET", f"/environments/{env_id()}/flows/{flow_id}/connections")
     bound_count = len(bound if isinstance(bound, list) else bound.get("value", []))
 
     return {
@@ -530,7 +612,7 @@ def run_flow(flow_id: str, trigger_name: str = "manual", inputs: Any = None) -> 
 
     Returns immediately - the run is asynchronous. Poll list_runs for the outcome.
     """
-    return _call("POST", f"/environments/{ENV_ID}/flows/{flow_id}/triggers/{trigger_name}/run", body=inputs)
+    return _call("POST", f"/environments/{env_id()}/flows/{flow_id}/triggers/{trigger_name}/run", body=inputs)
 
 
 @mcp.tool()
@@ -543,7 +625,7 @@ def list_runs(flow_id: str, status: str = "", top: int = 10) -> list[dict]:
     params: dict[str, Any] = {"$top": min(top, 100), "$orderby": "startTime desc"}
     if status:
         params["$filter"] = f"status eq '{status}'"
-    runs = _list(f"/environments/{ENV_ID}/flows/{flow_id}/runs", params=params, cap=top)
+    runs = _list(f"/environments/{env_id()}/flows/{flow_id}/runs", params=params, cap=top)
     return [_run_summary(r) for r in runs]
 
 
@@ -570,8 +652,8 @@ def explain_run(flow_id: str, run_id: str) -> dict:
     If failed_actions is empty and status is Failed, the failure was in the
     trigger, not the body - check the trigger's condition and inputs.
     """
-    run = _run_summary(_call("GET", f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}"))
-    actions = _list(f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}/actions", cap=100)
+    run = _run_summary(_call("GET", f"/environments/{env_id()}/flows/{flow_id}/runs/{run_id}"))
+    actions = _list(f"/environments/{env_id()}/flows/{flow_id}/runs/{run_id}/actions", cap=100)
 
     failed, succeeded = [], []
     for action in actions:
@@ -634,7 +716,7 @@ def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") ->
         baseline_run_id = succeeded[0]["run_id"]
 
     def actions_of(run_id: str) -> dict[str, dict]:
-        raw = _list(f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}/actions", cap=100)
+        raw = _list(f"/environments/{env_id()}/flows/{flow_id}/runs/{run_id}/actions", cap=100)
         return {a.get("name"): a.get("properties", {}) for a in raw}
 
     failed, baseline = actions_of(failed_run_id), actions_of(baseline_run_id)
@@ -724,7 +806,7 @@ def analyze_flow_health(flow_id: str, last_n: int = 50, sample_failures: int = 5
     causes: dict[str, dict] = {}
     for run in failed_runs:
         for action in _list(
-            f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run['run_id']}/actions", cap=100
+            f"/environments/{env_id()}/flows/{flow_id}/runs/{run['run_id']}/actions", cap=100
         ):
             props = action.get("properties", {})
             if props.get("status") != "Failed":
