@@ -18,7 +18,8 @@ env/
 *.egg-info/
 .pytest_cache/
 
-# Editors / OS
+# Editors / OS / agent tooling
+.claude/
 .vscode/
 .idea/
 .DS_Store

@@ -79,7 +79,7 @@ Every useful MCP server is four layers. Only two of them are interesting.
 flowchart TB
     subgraph gen["Generated in one prompt"]
         direction TB
-        L1["Layer 1 - Auth<br/>one az CLI call<br/>~15 lines"]
+        L1["Layer 1 - Auth<br/>one az CLI call, plus caching and errors<br/>~45 lines"]
         L2["Layer 2 - Transport<br/>retry 401 / 429 / 5xx, follow nextLink<br/>~50 lines"]
         L1 --> L2
     end
@@ -309,8 +309,9 @@ can be read top to bottom in a few minutes. The four layers appear in order.
 
 ### Layer 1: Auth (`_az`, `_token`, `env_id`)
 
-**One shell call.** That is the whole layer, and it is the single most transferable
-idea in this repo.
+**Getting the token is one shell call.** That is the single most transferable idea in
+this repo. The layer around it is another forty lines of caching, error handling and
+lazy environment resolution, but none of that is the interesting part.
 
 ```python
 PA_RESOURCE = "https://service.flow.microsoft.com"
