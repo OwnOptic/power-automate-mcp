@@ -56,6 +56,7 @@ And when the error is clear but the *reason* is not:
 - [Gotchas this server encodes](#gotchas-this-server-encodes)
 - [The demo flow](#the-demo-flow)
 - [Extending it](#extending-it)
+- [Skills: the layer above docstrings](#skills-the-layer-above-docstrings)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 - [What is deliberately missing](#what-is-deliberately-missing)
@@ -875,6 +876,33 @@ mistake a model actually makes.
 
 Natural next additions, roughly in order of usefulness: `resubmit_run`,
 `list_environments`, `get_trigger_url`, `delete_flow`, `list_solutions`.
+
+---
+
+## Skills: the layer above docstrings
+
+Docstrings teach the model one tool at a time. They cannot teach it the **loop**:
+which tool to reach for first, when to move to the next one, and when to stop. That
+knowledge lives one layer up, in skills - markdown playbooks a coding agent loads
+when the task matches.
+
+Two ship in [`.claude/skills/`](.claude/skills/):
+
+- **[debug-flow](.claude/skills/debug-flow/SKILL.md)** - the diagnose loop:
+  `list_runs` -> `explain_run`, then `compare_runs` when the error is clear but the
+  cause is not, then `analyze_flow_health` when it recurs, then fix and verify.
+- **[build-flow](.claude/skills/build-flow/SKILL.md)** - the authoring sequence:
+  the definition rules, create then `bind_connection` then start, and closing the
+  loop with a run after every change.
+
+If you open this repo in Claude Code they load automatically. If you installed the
+server into another project, copy the skill folders into that project's
+`.claude/skills/` (or `~/.claude/skills/` to have them everywhere).
+
+The division of labour is the same one the four layers made: put per-tool
+constraints in the docstring, put cross-tool workflow in a skill. When the model
+gets a single call wrong, fix the docstring; when it picks the wrong tool or gives
+up too early, fix the skill.
 
 ---
 
