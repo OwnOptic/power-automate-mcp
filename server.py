@@ -24,7 +24,6 @@ definition language reference (Power Automate uses the same schema).
 
 from __future__ import annotations
 
-import atexit
 import os
 import subprocess
 import time
@@ -33,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-import msal
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
@@ -44,70 +42,58 @@ mcp = FastMCP("pa-demo")
 
 # ---------------------------------------------------------------------------
 # LAYER 1 - AUTH
-# Two ways to get a delegated token, auto-selected:
+# Borrow the Azure CLI's token. That is the entire auth story.
 #
-#   az mode (default)  - borrow the Azure CLI's own token. You register NOTHING;
-#                        the CLI is itself a Microsoft first-party app that is
-#                        already consented in most tenants. `az login` and go.
-#   msal mode          - device code against a client id you supply. Needed when
-#                        your tenant has not authorised the CLI for the Flow
-#                        audience, and portable to machines with no Azure CLI.
+# You register nothing. The Azure CLI is itself a Microsoft first-party app that
+# your tenant already trusts, so `az login` replaces the app registration, the
+# admin consent and the device-code dance in one move.
 #
-# Set PA_CLIENT_ID to force msal mode. Leave it unset to use az.
+# Nothing here is Power Automate specific. Change PA_RESOURCE and this is a Graph
+# client, a Dataverse client, or an Azure Resource Manager client. When you build
+# an MCP server against any Azure-fronted API, try this before the Entra portal.
 #
-# Nothing here is Power Automate specific; swap PA_RESOURCE and this is a Graph
-# client, or a Dataverse client.
+# The trade-off, worth knowing: the CLI's session lives under your tenant's
+# Conditional Access policy, so it can expire mid-session. You get AADSTS70043
+# and `az login` fixes it.
 # ---------------------------------------------------------------------------
 
 PA_RESOURCE = "https://service.flow.microsoft.com"
-
-CLIENT_ID = os.environ.get("PA_CLIENT_ID", "").strip()
-TENANT_ID = os.environ.get("PA_TENANT_ID", "").strip()
-AUTH_MODE = "msal" if CLIENT_ID else "az"
-
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else ""
-SCOPES = [f"{PA_RESOURCE}/.default"]
-CACHE_PATH = HERE / ".token_cache.json"
 
 
 def _az(args: list[str]) -> str:
     """Run an Azure CLI command and return stdout.
 
     shell=True because on Windows `az` is a .cmd shim that CreateProcess will not
-    resolve on its own. The arguments here are all internal constants, never
+    resolve on its own. Every argument here is an internal constant, never
     user-supplied free text.
     """
     cmd = "az " + " ".join(f'"{a}"' if " " in a else a for a in args)
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True)
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout).strip()[:400]
-        raise RuntimeError(
-            f"Azure CLI call failed ({cmd}): {err}\n"
-            "Run `az login` against the tenant you want, or set PA_CLIENT_ID to use "
-            "device-code auth with your own app registration instead."
-        )
+        raise RuntimeError(f"Azure CLI call failed ({cmd}): {err}\nRun `az login` first.")
     out = proc.stdout.strip()
     if not out:
         raise RuntimeError(f"Azure CLI returned nothing for: {cmd}")
     return out
 
 
-_az_token_cache: tuple[str, float] | None = None
+_token_cache: tuple[str, float] | None = None
 
 
-def _az_access_token(force: bool = False) -> str:
-    """Mint a Flow-audience token via the Azure CLI, cached in-process.
+def _token(force: bool = False) -> str:
+    """A Flow-audience bearer token, cached in-process.
 
-    The CLI caches its own refresh token, so this is cheap after the first call.
-    A conservative 45-minute cache avoids shelling out on every request; the 401
-    retry in _call forces a refresh if the token dies earlier than expected.
+    The CLI holds its own refresh token, so this is cheap after the first call.
+    The 45-minute cache avoids shelling out on every request, and the 401 retry in
+    _call forces a refresh if the token dies sooner than expected.
     """
-    global _az_token_cache
-    if _az_token_cache and not force and _az_token_cache[1] - time.time() > 120:
-        return _az_token_cache[0]
+    global _token_cache
+    if _token_cache and not force and _token_cache[1] - time.time() > 120:
+        return _token_cache[0]
     token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
                  "--query", "accessToken", "-o", "tsv"])
-    _az_token_cache = (token, time.time() + 45 * 60)
+    _token_cache = (token, time.time() + 45 * 60)
     return token
 
 
@@ -117,10 +103,10 @@ _env_id: str | None = None
 def env_id() -> str:
     """The environment to operate on, resolved once.
 
-    PA_ENV_ID wins. Otherwise the tenant's default environment, with the tenant id
-    taken from PA_TENANT_ID or, failing that, from whatever the Azure CLI is
-    signed in to. Resolved lazily so the server still starts when az is not logged
-    in - you get a readable error inside a tool result instead of a dead server.
+    PA_ENV_ID wins. Otherwise the default environment of whatever tenant the Azure
+    CLI is signed in to. Resolved lazily so the server still starts and registers
+    its tools when az is not logged in - the failure then surfaces as a readable
+    tool error rather than a server that will not come up.
     """
     global _env_id
     if _env_id is None:
@@ -128,61 +114,9 @@ def env_id() -> str:
         if explicit:
             _env_id = explicit
         else:
-            tenant = TENANT_ID or _az(["account", "show", "--query", "tenantId", "-o", "tsv"])
+            tenant = _az(["account", "show", "--query", "tenantId", "-o", "tsv"])
             _env_id = f"Default-{tenant}"
     return _env_id
-
-
-# --- msal mode only, from here to _token() ---------------------------------
-
-_cache = msal.SerializableTokenCache()
-if CACHE_PATH.exists():
-    _cache.deserialize(CACHE_PATH.read_text(encoding="utf-8"))
-atexit.register(
-    lambda: CACHE_PATH.write_text(_cache.serialize(), encoding="utf-8")
-    if _cache.has_state_changed
-    else None
-)
-
-_app: msal.PublicClientApplication | None = None
-
-
-def _client() -> msal.PublicClientApplication:
-    """Build the MSAL client on first use, not at import.
-
-    MSAL hits the tenant's OIDC discovery endpoint when you construct it. Doing
-    that at import time means a wrong tenant id or dropped wifi kills the server
-    before it registers a single tool, and the client reports nothing more useful
-    than "server failed to start". Lazily, the same problem surfaces as a readable
-    error inside a tool result.
-    """
-    global _app
-    if _app is None:
-        _app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY, token_cache=_cache)
-    return _app
-
-
-def _token(force: bool = False) -> str:
-    """Return a bearer token from whichever auth mode is active."""
-    if AUTH_MODE == "az":
-        return _az_access_token(force=force)
-
-    app = _client()
-    accounts = app.get_accounts()
-    if accounts and not force:
-        result = app.acquire_token_silent(SCOPES, account=accounts[0])
-        if result and "access_token" in result:
-            return result["access_token"]
-
-    # First run only: print a code, user pastes it at microsoft.com/devicelogin.
-    flow = app.initiate_device_flow(scopes=SCOPES)
-    if "user_code" not in flow:
-        raise RuntimeError(f"device flow failed: {flow.get('error_description')}")
-    print(flow["message"], flush=True)  # visible in the MCP server log
-    result = app.acquire_token_by_device_flow(flow)
-    if "access_token" not in result:
-        raise RuntimeError(f"auth failed: {result.get('error_description')}")
-    return result["access_token"]
 
 
 # ---------------------------------------------------------------------------

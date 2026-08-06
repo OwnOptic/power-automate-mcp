@@ -1,5 +1,8 @@
 # Credentials and cached tokens - NEVER commit these
 .env
+
+# Vestigial: nothing writes these since auth moved to the Azure CLI, but anyone
+# upgrading from an earlier version may still have one holding a real refresh token.
 .token_cache.json
 *.token_cache.json
 
