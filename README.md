@@ -50,7 +50,7 @@ And when the error is clear but the *reason* is not:
 
 - [Why this exists](#why-this-exists)
 - [The tool that justifies the exercise](#the-tool-that-justifies-the-exercise)
-- [Quick start](#quick-start)
+- [Quick start](#quick-start) - [let Claude install it](#let-claude-install-it)
 - [Architecture: the four layers](#architecture-the-four-layers)
 - [Tool reference](#tool-reference)
 - [Gotchas this server encodes](#gotchas-this-server-encodes)
@@ -188,6 +188,138 @@ That gap is the entire argument for building your own MCP server.
 
 ## Quick start
 
+### Let Claude install it
+
+If you already have Claude Code or Claude Desktop, paste the prompt below and it will
+do the whole setup: check your prerequisites, clone, install, authenticate, wire the
+server into your MCP client, verify it, and optionally walk the demo debug loop.
+
+It is written to stop and ask before anything that touches your tenant, and it never
+prints a token.
+
+````text
+Set up the power-automate-mcp server on my machine, from
+https://github.com/OwnOptic/power-automate-mcp
+
+Work through the phases in order. After each phase, report what you found in one or
+two lines. If a check fails in a way not covered below, stop and tell me rather than
+improvising.
+
+RULES THAT OVERRIDE EVERYTHING ELSE
+- Never print, echo, log or write an access token anywhere. Pipe tokens into
+  variables, never to stdout.
+- Never run `az login --service-principal`, and never ask me for a password or a
+  client secret. This setup needs neither.
+- Do not create, update, run or delete any Power Automate flow until I have
+  explicitly confirmed the tenant in PHASE 2 and said yes in PHASE 6.
+- If a command fails, show me its actual error text. Do not paraphrase it.
+
+PHASE 0 - Inspect only, change nothing
+1. Detect my OS and shell.
+2. Run `python --version` (and `python3 --version` if that fails). Need 3.10 or later.
+   If it is older or missing, stop and tell me.
+3. Run `az version`. If the Azure CLI is missing, stop and give me the install link
+   for my OS: https://learn.microsoft.com/cli/azure/install-azure-cli
+4. Report OS, Python version, az version, and the directory you propose to clone into.
+
+PHASE 1 - Code and dependencies
+5. Clone the repo into that directory. If it already exists, `git pull` instead.
+6. Create a virtual environment inside it and use it for everything that follows.
+   Tell me the exact interpreter path, I will need it in PHASE 4.
+7. `pip install -r requirements.txt`. Expect three packages: mcp, httpx,
+   python-dotenv. Confirm they installed.
+8. Sanity check the code imports and registers its tools without any environment
+   variables set. It should report 10 tools:
+   `python -c "import asyncio, server; print(len(asyncio.run(server.mcp.list_tools())))"`
+   Run it from the repo directory. If this fails, stop.
+
+PHASE 2 - Authenticate, then STOP for my confirmation
+9. Run `az account show`. If it errors, or reports an expired session
+   (AADSTS70043), run `az login` and let me complete it in the browser.
+10. Show me the tenant id and the signed-in user, and ASK ME TO CONFIRM this is the
+    tenant I want. Do not continue until I say yes.
+    This matters: the server creates, edits and runs REAL flows with my delegated
+    permissions. It can do anything I can do. If the account looks like a production
+    or client tenant, say so explicitly and recommend I switch with
+    `az login --tenant <id>`.
+11. Once I confirm, check the Azure CLI is consented for the Flow audience WITHOUT
+    printing the token:
+    `az account get-access-token --resource "https://service.flow.microsoft.com/" --query expiresOn -o tsv`
+    - A timestamp means it works. Continue.
+    - AADSTS65001 (consent) means my tenant has not consented the Azure CLI for this
+      audience. Stop and tell me. This server deliberately has no app-registration
+      fallback, so setup cannot continue.
+    - AADSTS70043 means the session aged out under Conditional Access. Run
+      `az login` again.
+
+PHASE 3 - Target environment
+12. By default the server uses `Default-<tenantId>`, resolved automatically from the
+    Azure CLI. Ask whether I want a different environment.
+13. Only if I do: create a `.env` in the repo root containing a single line,
+    `PA_ENV_ID=<the environment GUID>`. Otherwise create no .env at all. There is
+    nothing else to configure and no secret to store.
+
+PHASE 4 - Wire it into my MCP client
+14. Ask which client I use, or detect it.
+15. For Claude Code, add to `.mcp.json` in my project root. For Claude Desktop, use
+    `%APPDATA%\Claude\claude_desktop_config.json` on Windows or
+    `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS.
+16. Back up the file before editing if it already exists.
+17. Add this entry, with the venv interpreter from step 6 and an ABSOLUTE path to
+    server.py:
+
+    {
+      "mcpServers": {
+        "power-automate": {
+          "command": "<absolute path to the venv python>",
+          "args": ["<absolute path to server.py>"]
+        }
+      }
+    }
+
+18. Show me the exact file path you changed and the exact block you added. If the
+    file already had other MCP servers, merge into the existing mcpServers object
+    rather than replacing it.
+
+PHASE 5 - Verify, read-only
+19. Tell me to fully restart my MCP client, and wait for me to confirm I have.
+20. Ask me to run: "List my flows."
+21. Expect flow_id, display_name, state for each flow. Interpret the result:
+    - Flows listed: setup is working, all four layers are live.
+    - Empty list: auth works but the environment has no flows, or it is the wrong
+      environment.
+    - 404: wrong environment. Get the GUID from the make.powerautomate.com URL and
+      set PA_ENV_ID as in step 13.
+    - "Run `az login` first": the CLI session died. Re-run `az login`.
+
+PHASE 6 - Optional end-to-end demo. ASK BEFORE STARTING.
+22. Explain to me first, then wait for a yes:
+    This creates a REAL flow called "DEMO - nightly batch" in the tenant I confirmed,
+    from demo-flow.json in the repo. That flow is DELIBERATELY BROKEN: Load_settings
+    emits batch_size 0 and Compute_batches divides 120 by it. The run is SUPPOSED to
+    fail. That failure is the whole point of the demo.
+    It is connector-free (button trigger plus two Compose actions), so it needs no
+    connection binding and touches no business data.
+23. On my yes, in order: create_flow from demo-flow.json, run_flow, list_runs,
+    then explain_run on the failed run.
+24. Expected result, tell me whether it matches: explain_run names Compute_batches as
+    the failed action, resolves the error to "The template language function 'div'
+    was invoked with a divisor of zero", and shows Load_settings outputting
+    batch_size 0. Symptom and cause are different actions, which is the point.
+25. Then offer to close the loop: update_flow_definition setting batch_size to 4,
+    run_flow again, list_runs. Expect Succeeded with output 30.
+26. Finally, remind me the demo flow still exists and this server has no delete tool
+    on purpose, so I should remove "DEMO - nightly batch" from the maker portal when
+    I am done.
+
+When everything is done, give me a short summary: where the repo lives, which
+interpreter runs it, which tenant and environment it is pointed at, which config
+file you edited, and anything that needed a workaround.
+````
+
+<details>
+<summary>Prefer to do it by hand? The manual steps are below.</summary>
+
 ### Prerequisites
 
 - Python 3.10 or later
@@ -299,6 +431,10 @@ Then run the full demo:
 Create a flow called "DEMO - nightly batch" using the definition in
 demo-flow.json, then run it and tell me what happened.
 ```
+
+That flow is meant to fail. See [The demo flow](#the-demo-flow).
+
+</details>
 
 ---
 
