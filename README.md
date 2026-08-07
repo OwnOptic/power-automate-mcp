@@ -51,7 +51,7 @@ And when the error is clear but the *reason* is not:
 - [Why this exists](#why-this-exists)
 - [The tool that justifies the exercise](#the-tool-that-justifies-the-exercise)
 - [Quick start](#quick-start) - [let Claude install it](#let-claude-install-it)
-- [Architecture: the four layers](#architecture-the-four-layers)
+- [Architecture: the four layers](#architecture-the-four-layers) - [transport: run it over stdio](#transport-run-it-over-stdio)
 - [Tool reference](#tool-reference)
 - [Gotchas this server encodes](#gotchas-this-server-encodes)
 - [The demo flow](#the-demo-flow)
@@ -394,6 +394,11 @@ reads or writes.
 
 ### 4. Connect it to your client
 
+This is a **stdio** server: your client launches `server.py` as a local child process
+and speaks MCP over stdin/stdout. There is nothing to host and no port to open. See
+[Transport: run it over stdio](#transport-run-it-over-stdio) for why that is the right
+default here.
+
 **Claude Code** - add to `.mcp.json` in your project root, or to your user config:
 
 ```json
@@ -442,6 +447,34 @@ That flow is meant to fail. See [The demo flow](#the-demo-flow).
 
 The whole server is [`server.py`](server.py), deliberately kept in one file so it
 can be read top to bottom in a few minutes. The four layers appear in order.
+
+### Transport: run it over stdio
+
+**Run this as a stdio MCP server.** Your client spawns `server.py` as a local child
+process and talks to it over stdin/stdout. Every config block in this README is a
+stdio config, and that is a recommendation rather than an accident of the example.
+
+It follows directly from Layer 1. The server has no credential of its own - it
+borrows the Azure CLI session already sitting on your machine. A token in your local
+CLI keyring can only be read by a process running as you, on that machine. So the
+transport has to be local, and stdio is the local transport.
+
+What you get by *not* putting this behind HTTP:
+
+- **Nothing to host.** No container, no TLS certificate, no public endpoint, no tunnel.
+- **No second auth layer.** A remote server needs its own authentication in front of
+  it, plus a way to map callers back to Power Platform identities. Over stdio the
+  process already runs as you and the API call already carries your delegated
+  permissions.
+- **Nothing new to leak.** The token never crosses a network boundary.
+- **Lifecycle for free.** The client starts the server when you need it and stops it
+  when the session ends.
+
+Reach for a hosted transport (Streamable HTTP) only when something genuinely remote
+has to call you - a cloud-hosted agent, Copilot Studio, a shared team service. The
+moment you do, Layer 1 changes completely: you own an app registration, a secret and
+a consent flow, because there is no local CLI session to borrow. That is a real
+project, not a config change.
 
 ### Layer 1: Auth (`_az`, `_token`, `env_id`)
 
@@ -509,7 +542,7 @@ described above.
 
 ### Layer 4: Tools and docstrings
 
-Seven `@mcp.tool()` functions. The docstrings are not documentation for humans,
+Ten `@mcp.tool()` functions. The docstrings are not documentation for humans,
 they are the prompt the model reads to decide what to call and how. They carry:
 
 - what the tool returns and which field feeds which other tool
@@ -1111,7 +1144,7 @@ they encode things the API does not document and a model could not know. That sp
 is the entire argument.
 
 **How long did it take?**
-The seven tools are an evening. The docstrings are months of hitting the same walls
+The ten tools are an evening. The docstrings are months of hitting the same walls
 repeatedly. That is the honest answer, and it is the more useful one.
 
 **Can I use this against a production tenant?**
@@ -1120,6 +1153,13 @@ Technically yes, and you should think hard first. See [Security](#security).
 **Does this work with Copilot Studio, Dataverse, or Azure DevOps?**
 Same four layers, different base URL and scope. Swap those two constants and the
 structure holds unchanged. That is why the file is organised the way it is.
+
+One caveat on transport. Pointing this server *at* Dataverse or Azure DevOps is the
+two-constant change above, and it stays a stdio server. Making it callable *from*
+Copilot Studio is a different job: a cloud-hosted agent cannot spawn a process on
+your laptop, so you need Streamable HTTP, which means hosting, your own app
+registration and a consent flow - there is no local CLI session out there to borrow.
+See [Transport: run it over stdio](#transport-run-it-over-stdio).
 
 **Why one file instead of a package?**
 So it can be read top to bottom in five minutes. A real server should be split into
