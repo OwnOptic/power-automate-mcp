@@ -267,22 +267,44 @@ def _resolve_error(props: dict) -> str | None:
     real error and a naive API wrapper shows you "Failed" and nothing else.
     So the tool does the second hop itself. One extra HTTP call here saves the
     model three tool calls and a guess.
+
+    WHICH FAILURES ACTUALLY HIT THIS PATH, measured 2026-08-07:
+    An expression error (InvalidTemplate, divide-by-zero) IS inline - the action
+    carries `error` and no outputsLink at all, so the first branch returns and the
+    blob hop never happens. A CONNECTOR failure is the opposite: status Failed,
+    NO `error` property, and the whole HTTP response parked in the blob. That is
+    the case worth building for, and the case a naive wrapper reports as "".
+
+    AND WHICH FIELD INSIDE THE BLOB, same measurement:
+    `error.message` is frequently a restatement of the code - a real Teams 404
+    gives {"code": "NotFound", "message": "NotFound"}, which tells you nothing.
+    The diagnosis lives in `error.innerError.message`:
+        "LocationLookupFailed-Location lookup failed for thread 19:...@thread.tacv2"
+    which names the offending value outright. So prefer innerError, and keep the
+    HTTP status - "404" plus that sentence is the whole answer in one line.
     """
     if props.get("error"):
         return props["error"].get("message") if isinstance(props["error"], dict) else str(props["error"])
 
-    link = props.get("outputsLink") or {}
+    link = props.get("outputsLink") or props.get("outputs") or {}
     if not isinstance(link, dict) or "uri" not in link:
         return None
     try:
-        body = httpx.get(link["uri"], timeout=10).json()
+        payload = httpx.get(link["uri"], timeout=10).json()
     except Exception:  # noqa: BLE001 - SAS URLs expire; never let this break the tool
         return "[error blob unavailable - the SAS URL has expired, re-run the flow]"
-    return (
-        body.get("body", {}).get("error", {}).get("message")
-        or body.get("error", {}).get("message")
-        or str(body)[:MAX_FIELD_CHARS]
-    )
+
+    err = payload.get("body", {}).get("error", {}) or payload.get("error", {}) or {}
+    inner = err.get("innerError") or {}
+    message = inner.get("message") or err.get("message")
+    code = err.get("code")
+    status = payload.get("statusCode")
+
+    if not message:
+        return str(payload)[:MAX_FIELD_CHARS]
+    # Drop the code when it is just the message again ("NotFound" / "NotFound").
+    label = " ".join(str(p) for p in (status, code) if p and str(p) != message)
+    return f"{label}: {message}" if label else message
 
 
 def _resolve_content(value: Any) -> Any:

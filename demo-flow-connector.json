@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": { "defaultValue": {}, "type": "Object" },
+    "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Button",
+      "inputs": { "schema": {} }
+    }
+  },
+  "actions": {
+    "Load_target": {
+      "type": "Compose",
+      "runAfter": {},
+      "inputs": {
+        "team_id": "00000000-0000-0000-0000-000000000000",
+        "channel_id": "19:0000000000000000000000000000dead@thread.tacv2"
+      }
+    },
+    "Post_message": {
+      "type": "OpenApiConnection",
+      "runAfter": { "Load_target": ["Succeeded"] },
+      "inputs": {
+        "host": {
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_teams",
+          "operationId": "PostMessageToConversation",
+          "connectionName": "shared_teams"
+        },
+        "parameters": {
+          "poster": "User",
+          "location": "Channel",
+          "body/recipient/groupId": "@outputs('Load_target')['team_id']",
+          "body/recipient/channelId": "@outputs('Load_target')['channel_id']",
+          "body/messageBody": "<p>pa-demo verification - this post is expected to fail</p>"
+        }
+      }
+    }
+  }
+}
