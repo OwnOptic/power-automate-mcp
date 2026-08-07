@@ -1,0 +1,22 @@
+# Direct dependencies, loosely specified. This is the file you edit.
+#
+# requirements.txt is the compiled lockfile generated from this one - every
+# package pinned to an exact version, transitives included. Do not edit it by hand.
+#
+# Regenerate after changing anything here:
+#
+#   uv pip compile requirements.in --universal --python-version 3.10 -o requirements.txt
+#
+# --universal resolves for every OS at once and emits environment markers, so the
+# same lockfile works on Windows, macOS and Linux. --python-version 3.10 matches
+# the minimum this server supports.
+
+# mcp is capped below 2.0. The 2.x line removed `mcp.server.fastmcp`, which
+# server.py imports, so an unpinned `mcp>=1.0.0` now resolves to 2.0.0 and fails
+# at import with ModuleNotFoundError. Lifting this cap means migrating server.py
+# to the 2.x API first.
+# There is no `server` extra on modern mcp releases; requesting mcp[server] was a
+# silent no-op.
+mcp>=1.0.0,<2
+httpx>=0.27.0
+python-dotenv>=1.0.0

@@ -226,8 +226,9 @@ PHASE 1 - Code and dependencies
 5. Clone the repo into that directory. If it already exists, `git pull` instead.
 6. Create a virtual environment inside it and use it for everything that follows.
    Tell me the exact interpreter path, I will need it in PHASE 4.
-7. `pip install -r requirements.txt`. Expect three packages: mcp, httpx,
-   python-dotenv. Confirm they installed.
+7. `pip install -r requirements.txt`. That file is a lockfile, so expect around
+   thirty pinned packages, not three - `mcp`, `httpx` and `python-dotenv` are the
+   direct ones, the rest are their transitives. Confirm the install succeeded.
 8. Sanity check the code imports and registers its tools without any environment
    variables set. It should report 10 tools:
    `python -c "import asyncio, server; print(len(asyncio.run(server.mcp.list_tools())))"`
@@ -372,7 +373,24 @@ cd power-automate-mcp
 pip install -r requirements.txt
 ```
 
-Three dependencies: `mcp`, `httpx`, `python-dotenv`. Plus the Azure CLI.
+Three direct dependencies - `mcp`, `httpx`, `python-dotenv` - plus the Azure CLI.
+
+`requirements.txt` is a **lockfile**: every package pinned to an exact version,
+transitives included, so you get the same tree this was tested against rather than
+whatever resolves today. Edit [`requirements.in`](requirements.in) to change a
+dependency, then regenerate:
+
+```bash
+uv pip compile requirements.in --universal --python-version 3.10 -o requirements.txt
+```
+
+`--universal` resolves for every OS at once and emits environment markers, so one
+lockfile covers Windows, macOS and Linux.
+
+> **`mcp` is capped below 2.0 on purpose.** The 2.x line removed
+> `mcp.server.fastmcp`, which `server.py` imports, so an unpinned `mcp>=1.0.0`
+> resolves to 2.0.0 and fails immediately with `ModuleNotFoundError`. Lifting the
+> cap means porting `server.py` to the 2.x API first.
 
 ### 3. Configure
 
