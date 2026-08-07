@@ -34,6 +34,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 HERE = Path(__file__).resolve().parent
 load_dotenv(HERE / ".env")
@@ -55,9 +56,42 @@ mcp = FastMCP("pa-demo")
 # The trade-off, worth knowing: the CLI's session lives under your tenant's
 # Conditional Access policy, so it can expire mid-session. You get AADSTS70043
 # and `az login` fixes it.
+#
+# THE SHARP EDGE, learned the hard way 2026-08-07. Borrowing the CLI's token means
+# borrowing whichever account is ACTIVE, and `az` holds many at once - one per
+# tenant you have ever logged into. `az account show` on a consultant's machine can
+# easily be a client's production service principal. This server then happily
+# creates and runs flows there.
+#
+# So pin the tenant. PA_TENANT_ID makes the server declare which tenant it is for
+# instead of inheriting one, and `az account get-access-token --tenant` fails loudly
+# if you are not signed in to it. Unset means "whatever az is pointing at", which is
+# fine on a single-tenant machine and a live grenade on any other.
 # ---------------------------------------------------------------------------
 
 PA_RESOURCE = "https://service.flow.microsoft.com"
+
+
+def _tenant_args() -> list[str]:
+    """`--tenant <id>` when PA_TENANT_ID is set, otherwise nothing.
+
+    Read at call time, not import time, so a client that sets the variable after
+    load_dotenv still gets it.
+
+    What `--tenant` actually does, verified 2026-08-07 - it is a GUARD, not a
+    switch. az mints the token using the credentials of the account that is
+    currently ACTIVE, for the tenant you named. It does not go find the logged-in
+    account that happens to live in that tenant. So:
+
+      pinned tenant reachable by the active account -> token, tid matches the pin
+      pinned tenant NOT reachable by it             -> AADSTS50020, call fails
+
+    The second case is the whole point. Unpinned, the same call would have quietly
+    succeeded against whatever tenant was active and written flows there. Failing
+    loudly in the wrong tenant beats succeeding quietly in it.
+    """
+    pinned = os.environ.get("PA_TENANT_ID", "").strip()
+    return ["--tenant", pinned] if pinned else []
 
 
 def _az(args: list[str]) -> str:
@@ -92,7 +126,7 @@ def _token(force: bool = False) -> str:
     if _token_cache and not force and _token_cache[1] - time.time() > 120:
         return _token_cache[0]
     token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
-                 "--query", "accessToken", "-o", "tsv"])
+                 *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
     _token_cache = (token, time.time() + 45 * 60)
     return token
 
@@ -103,16 +137,22 @@ _env_id: str | None = None
 def env_id() -> str:
     """The environment to operate on, resolved once.
 
-    PA_ENV_ID wins. Otherwise the default environment of whatever tenant the Azure
-    CLI is signed in to. Resolved lazily so the server still starts and registers
-    its tools when az is not logged in - the failure then surfaces as a readable
-    tool error rather than a server that will not come up.
+    PA_ENV_ID wins. Then PA_TENANT_ID, which gives that tenant's Default environment.
+    Failing both, the default environment of whatever tenant the Azure CLI happens to
+    be pointing at - see the warning in LAYER 1 before relying on that.
+
+    Resolved lazily so the server still starts and registers its tools when az is not
+    logged in - the failure then surfaces as a readable tool error rather than a
+    server that will not come up.
     """
     global _env_id
     if _env_id is None:
         explicit = os.environ.get("PA_ENV_ID", "").strip()
+        pinned = os.environ.get("PA_TENANT_ID", "").strip()
         if explicit:
             _env_id = explicit
+        elif pinned:
+            _env_id = f"Default-{pinned}"
         else:
             tenant = _az(["account", "show", "--query", "tenantId", "-o", "tsv"])
             _env_id = f"Default-{tenant}"
@@ -245,6 +285,180 @@ def _resolve_error(props: dict) -> str | None:
     )
 
 
+def _resolve_content(value: Any) -> Any:
+    """Dereference a content envelope into the value it points at.
+
+    THE SECOND HALF OF THE GOTCHA ABOVE, and it took running this server against a
+    live tenant to find it. No test would have: every unit test I could have written
+    would have asserted on the envelope and passed.
+
+    Inputs and outputs come back exactly the way errors do - not as values, but as an
+    envelope wrapping a short-lived SAS URL:
+
+        {"uri": "https://<env>.environment.api.powerplatformusercontent.com/...
+                 /actions/Load_settings/contents/ActionOutputs?...&sig=...",
+         "contentVersion": "...", "contentSize": 50, "contentHash": {...}}
+
+    _resolve_error followed that link for the FAILED action. Nothing followed it for
+    the succeeded ones, so explain_run returned a URI where the caller needed a value
+    - while its own hint read "check the outputs of the succeeded actions for the
+    value that caused it". The hint pointed at data the tool had not fetched.
+
+    compare_runs had the same hole and a worse consequence. It fell back to comparing
+    contentSize, so {"region":"westeurope","retries":3,"batch_size":0} and the same
+    dict with batch_size 4 - both 50 bytes - compared EQUAL, and output_changes came
+    back empty on precisely the diff the tool exists to surface.
+
+    One detail worth keeping: the host is *.powerplatformusercontent.com, not
+    blob.core.windows.net. Grep for the wrong hostname and you will conclude this
+    problem does not exist.
+    """
+    if not isinstance(value, dict) or "uri" not in value:
+        return value
+    try:
+        return httpx.get(value["uri"], timeout=10).json()
+    except Exception:  # noqa: BLE001 - SAS URLs expire; never let this break the tool
+        return {
+            "_unresolved": "content link expired or unreachable - re-run the flow",
+            "contentSize": value.get("contentSize"),
+        }
+
+
+_VALID_TRIGGER_TYPES = {
+    "Request", "Recurrence", "OpenApiConnection", "OpenApiConnectionWebhook",
+    "OpenApiConnectionNotification", "ApiConnection", "ApiConnectionWebhook",
+    "ApiConnectionNotification", "Http", "HttpWebhook",
+}
+_VALID_REQUEST_KINDS = {
+    "Button", "Http", "PowerApp", "PowerAppV2", "VirtualAgent", "Skills",
+    "ApiConnection", "PowerPages",
+}
+_WEBHOOK_OPERATIONS = {
+    "StartAndWaitForAnApproval", "WaitForAnApproval", "SubscribeWebhook", "HttpWebhookTrigger",
+}
+
+
+def _validate_definition(definition: dict, connection_references: dict | None = None) -> list[dict]:
+    """Check a definition against the rules the API enforces, BEFORE sending it.
+
+    Why this layer exists at all: every rule below is something the Power Automate
+    API will reject - but it rejects with a message that points somewhere else. The
+    classic is omitting the magic parameters, where the 400 blames the TRIGGER for
+    missing '$authentication' and you go hunting in the trigger. Ten lines of local
+    checking turn a misleading server error into a readable local one.
+
+    Rules ported from Microsoft's own flowagent bundle (validateDefinition,
+    plugins/power-automate/server/mcp.mjs:193) on 2026-08-07, because their list is
+    better than mine was. Credit where due: this is the one part of their server
+    worth taking wholesale. It is also the part that is pure encoded knowledge, which
+    rather makes the point about where the value in an MCP server sits.
+
+    Returns a list of {severity, rule, message, path}. "error" means the API will
+    refuse it; "warning" means it will be accepted and then disappoint you later.
+    Never raises - the caller decides what to do.
+    """
+    issues: list[dict] = []
+
+    def add(severity: str, rule: str, message: str, path: str = "") -> None:
+        issues.append({"severity": severity, "rule": rule, "message": message, "path": path})
+
+    params = definition.get("parameters") or {}
+    if "$authentication" not in params:
+        add("error", "missing-authentication-param",
+            'Definition must declare $authentication in parameters '
+            '({"defaultValue": {}, "type": "SecureObject"}). Without it the API 400s '
+            'blaming the trigger, which is the wrong place to look.')
+    if "$connections" not in params:
+        add("error", "missing-connections-param",
+            'Definition must declare $connections in parameters '
+            '({"defaultValue": {}, "type": "Object"}).')
+
+    for name, trigger in (definition.get("triggers") or {}).items():
+        ttype = trigger.get("type")
+        if ttype and ttype not in _VALID_TRIGGER_TYPES:
+            add("error", "invalid-trigger-type",
+                f'Unknown trigger type "{ttype}". Expected one of: '
+                f'{", ".join(sorted(_VALID_TRIGGER_TYPES))}', f"triggers.{name}.type")
+        if ttype == "Request":
+            kind = trigger.get("kind")
+            if kind and kind not in _VALID_REQUEST_KINDS:
+                add("error", "invalid-trigger-kind",
+                    f'Unknown Request kind "{kind}". Expected one of: '
+                    f'{", ".join(sorted(_VALID_REQUEST_KINDS))}', f"triggers.{name}.kind")
+            if kind == "Http":
+                add("warning", "premium-trigger",
+                    'HTTP Request triggers need a Premium licence. Use kind "Button" on '
+                    'free/seeded plans, or "PowerAppV2" for a Power Apps context.',
+                    f"triggers.{name}.kind")
+        inputs = trigger.get("inputs")
+        host = inputs.get("host") if isinstance(inputs, dict) else None
+        if isinstance(host, dict) and (host.get("api") or {}).get("runtimeUrl"):
+            add("warning", "legacy-runtime-url",
+                "Trigger host carries runtimeUrl (legacy ApiConnection pattern). Use "
+                "apiId + operationId + connectionName instead.",
+                f"triggers.{name}.inputs.host.api.runtimeUrl")
+
+    actions = definition.get("actions") or {}
+    for name, action in actions.items():
+        atype = action.get("type")
+        inputs = action.get("inputs")
+        host = inputs.get("host") if isinstance(inputs, dict) else None
+
+        if atype == "ApiConnection":
+            add("warning", "legacy-action-type",
+                'Use "OpenApiConnection" instead of "ApiConnection" (legacy format).',
+                f"actions.{name}.type")
+
+        if atype == "OpenApiConnection" and isinstance(host, dict):
+            op = host.get("operationId") or ""
+            looks_webhook = op in _WEBHOOK_OPERATIONS or bool(
+                op[:12] and op.lower().startswith(("startandwait", "waitfor", "subscribe"))
+            )
+            if looks_webhook:
+                add("error", "webhook-type-mismatch",
+                    f'Operation "{op}" is a long-running webhook operation and needs type '
+                    '"OpenApiConnectionWebhook", not "OpenApiConnection". Approvals are the '
+                    'usual case. Confirm against the connector reference.',
+                    f"actions.{name}.type")
+
+        # runAfter naming a step that does not exist saves fine and never runs.
+        for dep in (action.get("runAfter") or {}):
+            if dep not in actions:
+                add("error", "dangling-run-after",
+                    f'"{name}" runs after "{dep}", which is not an action in this '
+                    'definition. The flow will save and then never execute that branch.',
+                    f"actions.{name}.runAfter")
+
+        if connection_references and isinstance(host, dict):
+            conn = host.get("connectionName") or host.get("connectionReferenceName")
+            ref = None
+            if conn:
+                if conn in connection_references:
+                    ref = conn
+                else:
+                    ref = next((k for k, v in connection_references.items()
+                                if isinstance(v, dict)
+                                and v.get("connectionReferenceLogicalName") == conn), None)
+            if ref:
+                source = (connection_references[ref] or {}).get("source")
+                if source and source != "Embedded":
+                    add("error", "invoker-connection",
+                        f'Connection source must be "Embedded", not "{source}". Invoker '
+                        'mode raises InvokerConnectionOverrideFailed on API-triggered runs.',
+                        f"connectionReferences.{ref}")
+
+    return issues
+
+
+def _raise_on_errors(issues: list[dict]) -> list[dict]:
+    """Block on errors, hand warnings back to the caller. Returns the warnings."""
+    errors = [i for i in issues if i["severity"] == "error"]
+    if errors:
+        detail = "; ".join(f'{i["rule"]}: {i["message"]}' for i in errors)
+        raise RuntimeError(f"Definition rejected locally before calling the API - {detail}")
+    return [i for i in issues if i["severity"] == "warning"]
+
+
 def _parse_time(value: str | None) -> datetime | None:
     """Parse a Power Automate timestamp.
 
@@ -291,8 +505,20 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
     audience entirely -
         GET https://api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections
     - and calling it with a service.flow.microsoft.com token returns 403 InvalidPath.
-    You would need an aud=service.powerapps.com token, i.e. a second app registration
-    and a second consent, to enumerate connections properly.
+
+    CORRECTED 2026-08-07. The sentence that used to sit here said you would need a second
+    app registration and a second consent. That is wrong, and reading Microsoft's own
+    flowagent bundle is what showed it. Their list_connections does not use the Flow or
+    PowerApps API at all - it asks Dataverse:
+        GET {instanceUrl}/api/data/v9.2/connectionreferences
+    with a token whose audience is the environment's Dataverse instance URL. `az` mints
+    that on demand, so it costs a second TOKEN, not a second registration. Two caveats
+    that keep the per-flow walk below honest: it needs a Dataverse instance in the
+    environment (their code carries an explicit no-dataverse-instance path), and it
+    returns connection REFERENCES, which are a solution-layer concept and not always
+    one-to-one with the connections a non-solution flow binds.
+
+    Keeping the flow-walk as the default is a deliberate trade, not an oversight.
 
     The per-flow route DOES work, so this walks flows and unions what they reference.
     Consequence: a connection no flow uses yet is invisible here. For the question that
@@ -337,14 +563,14 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
 
 # ---------------------------------------------------------------------------
 # LAYER 4 - TOOLS
-# Seven tools covering one loop: see -> build -> run -> fail -> understand -> fix.
+# Ten tools covering one loop: see -> build -> run -> fail -> understand -> fix.
 #
 # The docstrings are not documentation. They are the prompt. Everything the model
 # gets wrong twice should end up written down here, permanently.
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Flows", readOnlyHint=True))
 def list_flows(state: str = "", top: int = 25) -> list[dict]:
     """List flows in the environment, newest change first.
 
@@ -355,7 +581,7 @@ def list_flows(state: str = "", top: int = 25) -> list[dict]:
     return [f for f in flows if not state or f["state"] == state]
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Get Flow", readOnlyHint=True))
 def get_flow(flow_id: str) -> dict:
     """Get one flow with its full definition - the JSON behind the designer's Code view.
 
@@ -367,7 +593,14 @@ def get_flow(flow_id: str) -> dict:
     return _flow_summary(raw, with_definition=True)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Create Flow",
+        readOnlyHint=False,
+        destructiveHint=False,  # additive: makes a new flow, never touches an existing one
+        idempotentHint=False,  # calling twice gives you two flows with the same name
+    )
+)
 def create_flow(display_name: str, definition: dict, start: bool = True) -> dict:
     """Create a flow from a workflow-definition dict.
 
@@ -401,11 +634,22 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> dict
     Look up connector operationIds and parameter schemas on Microsoft Learn rather
     than guessing them. Guessing produces a flow that saves fine and fails at runtime.
     """
+    warnings = _raise_on_errors(_validate_definition(definition))
     body = {"properties": {"displayName": display_name, "state": "Started" if start else "Stopped", "definition": definition}}
-    return _flow_summary(_call("POST", f"/environments/{env_id()}/flows", body=body))
+    out = _flow_summary(_call("POST", f"/environments/{env_id()}/flows", body=body))
+    if warnings:
+        out["warnings"] = warnings
+    return out
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Update Flow Definition",
+        readOnlyHint=False,
+        destructiveHint=True,  # replaces the WHOLE definition; a partial dict silently deletes actions
+        idempotentHint=True,  # same definition twice lands the same state
+    )
+)
 def update_flow_definition(flow_id: str, definition: dict, connection_references: dict | None = None) -> dict:
     """Replace a flow's definition. Send the COMPLETE definition - there is no patch semantics.
 
@@ -422,13 +666,37 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
     `connectionReferenceName`, and the reference itself cannot be minted here).
     Edit those in the portal.
     """
+    warnings = _raise_on_errors(_validate_definition(definition, connection_references))
+
+    # Snapshot before overwriting. This endpoint has no patch semantics and no undo:
+    # a definition missing an action does not merge, it deletes that action. Reading
+    # the old one back costs one GET and is the difference between a typo and a
+    # rebuild. Returned to the caller rather than written to disk - the model that
+    # made the bad edit is the one that needs the old value to put it back.
+    try:
+        previous = _call("GET", f"/environments/{env_id()}/flows/{flow_id}") \
+            .get("properties", {}).get("definition")
+    except Exception:  # noqa: BLE001 - never let the safety net block the operation
+        previous = None
+
     props: dict[str, Any] = {"definition": definition}
     if connection_references:
         props["connectionReferences"] = connection_references
-    return _flow_summary(_call("PATCH", f"/environments/{env_id()}/flows/{flow_id}", body={"properties": props}))
+    out = _flow_summary(_call("PATCH", f"/environments/{env_id()}/flows/{flow_id}", body={"properties": props}))
+    out["previous_definition"] = previous
+    if warnings:
+        out["warnings"] = warnings
+    return out
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Bind Connection",
+        readOnlyHint=False,
+        destructiveHint=False,  # attaches an existing connection; creates nothing, deletes nothing
+        idempotentHint=True,
+    )
+)
 def bind_connection(
     flow_id: str,
     connector: str,
@@ -533,7 +801,18 @@ def bind_connection(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Run Flow",
+        readOnlyHint=False,
+        # The only tool whose blast radius is defined by someone else's flow, not by this
+        # server. The flow can send mail, write to SharePoint, call a paid API. We cannot
+        # know, so we declare the worst case.
+        destructiveHint=True,
+        idempotentHint=False,  # every call starts another run
+        openWorldHint=True,
+    )
+)
 def run_flow(flow_id: str, trigger_name: str = "manual", inputs: Any = None) -> dict:
     """Trigger a flow now, without waiting for its schedule. You must own the flow.
 
@@ -549,7 +828,7 @@ def run_flow(flow_id: str, trigger_name: str = "manual", inputs: Any = None) -> 
     return _call("POST", f"/environments/{env_id()}/flows/{flow_id}/triggers/{trigger_name}/run", body=inputs)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="List Runs", readOnlyHint=True))
 def list_runs(flow_id: str, status: str = "", top: int = 10) -> list[dict]:
     """List recent runs for a flow, newest first.
 
@@ -563,7 +842,7 @@ def list_runs(flow_id: str, status: str = "", top: int = 10) -> list[dict]:
     return [_run_summary(r) for r in runs]
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Explain Run", readOnlyHint=True))
 def explain_run(flow_id: str, run_id: str) -> dict:
     """Diagnose a run: which action failed, with what error, on what inputs.
 
@@ -595,10 +874,10 @@ def explain_run(flow_id: str, run_id: str) -> dict:
         record = {"name": action.get("name"), "status": props.get("status")}
         if props.get("status") == "Failed":
             record["error"] = _resolve_error(props)
-            record["inputs"] = _trim(props.get("inputsLink") or props.get("inputs"))
+            record["inputs"] = _trim(_resolve_content(props.get("inputsLink") or props.get("inputs")))
             failed.append(record)
         elif props.get("status") == "Succeeded":
-            record["outputs"] = _trim(props.get("outputsLink") or props.get("outputs"))
+            record["outputs"] = _trim(_resolve_content(props.get("outputsLink") or props.get("outputs")))
             succeeded.append(record)
 
     return {
@@ -616,7 +895,7 @@ def explain_run(flow_id: str, run_id: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Compare Runs", readOnlyHint=True))
 def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") -> dict:
     """Diff a failed run against a working one to find what changed.
 
@@ -662,14 +941,14 @@ def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") ->
         if f_status != b_status:
             status_changes.append({"action": name, "baseline": b_status, "failed": f_status})
         elif f_status == "Succeeded":
-            f_out = failed[name].get("outputsLink") or failed[name].get("outputs")
-            b_out = baseline[name].get("outputsLink") or baseline[name].get("outputs")
-            # outputsLink URIs differ per run by design; compare content size instead.
-            f_key = f_out.get("contentSize") if isinstance(f_out, dict) and "uri" in f_out else f_out
-            b_key = b_out.get("contentSize") if isinstance(b_out, dict) and "uri" in b_out else b_out
-            if f_key != b_key:
+            # Resolve BOTH sides to real values before diffing. Comparing the
+            # envelopes is useless: the URIs differ every run by design, and
+            # contentSize collides on same-shape payloads (see _resolve_content).
+            f_out = _resolve_content(failed[name].get("outputsLink") or failed[name].get("outputs"))
+            b_out = _resolve_content(baseline[name].get("outputsLink") or baseline[name].get("outputs"))
+            if f_out != b_out:
                 output_changes.append(
-                    {"action": name, "baseline": _trim(b_key), "failed": _trim(f_key)}
+                    {"action": name, "baseline": _trim(b_out), "failed": _trim(f_out)}
                 )
 
     return {
@@ -683,7 +962,7 @@ def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") ->
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(title="Analyze Flow Health", readOnlyHint=True))
 def analyze_flow_health(flow_id: str, last_n: int = 50, sample_failures: int = 5) -> dict:
     """Analyse a flow's recent run history: reliability, failure patterns, duration.
 

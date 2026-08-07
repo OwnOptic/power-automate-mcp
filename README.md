@@ -1144,7 +1144,7 @@ cancel, desktop flows, and approvals.
 
 Ten tools is about the number that fits in a talk while still covering a real loop:
 author, bind, run, diagnose. The production server this was extracted from runs
-twenty-one Power Automate tools alongside Microsoft Graph and Teams, and it is the
+twenty-four Power Automate tools alongside Microsoft Graph and Teams, and it is the
 same four layers throughout.
 
 ---
