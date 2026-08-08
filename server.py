@@ -31,6 +31,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# pydantic refuses typing.TypedDict below 3.12 and raises PydanticUserError at import
+# time, which takes the whole server down. typing_extensions ships with pydantic, so
+# this is not a new dependency in practice - the fallback is only for a 3.12+ install
+# that somehow lacks it.
+try:  # pragma: no cover - trivial import shim
+    from typing_extensions import TypedDict
+except ImportError:  # pragma: no cover
+    from typing import TypedDict  # type: ignore[assignment]
+
 import httpx
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -242,6 +251,43 @@ def _flow_summary(raw: dict, with_definition: bool = False) -> dict:
         out["actions"] = list(definition.get("actions", {}))
         out["definition"] = definition
     return out
+
+
+class FlowSummary(TypedDict, total=False):
+    """The shape every flow-returning tool produces. Declared, not just conventional.
+
+    This exists because layer 3 is the layer this project claims the value sits in,
+    and an undeclared shape is a convention, not a contract. A caller has no way to
+    know whether the key is `id`, `name` or `flow_id` short of reading the source -
+    and on 2026-08-07 a verification script guessed `id`, got None, and cascaded into
+    three 404s before anyone noticed. FastMCP turns this into a real outputSchema on
+    the wire, so the client can check rather than guess.
+
+    total=False because the optional keys genuinely are: `definition` only when asked
+    for, `warnings` only when the validator found non-blocking issues,
+    `previous_definition` only on update.
+    """
+
+    flow_id: str
+    display_name: str
+    state: str
+    modified: str
+    triggers: list[str]
+    actions: list[str]
+    definition: dict[str, Any]
+    warnings: list[dict[str, Any]]
+    previous_definition: dict[str, Any] | None
+
+
+class RunSummary(TypedDict, total=False):
+    """One run, shaped. `error` is the run-level envelope, not the action error -
+    for that you want explain_run, which does the second hop."""
+
+    run_id: str
+    status: str
+    start_time: str
+    end_time: str
+    error: dict[str, Any] | None
 
 
 def _run_summary(raw: dict) -> dict:
@@ -593,7 +639,7 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Flows", readOnlyHint=True))
-def list_flows(state: str = "", top: int = 25) -> list[dict]:
+def list_flows(state: str = "", top: int = 25) -> list[FlowSummary]:
     """List flows in the environment, newest change first.
 
     state filters client-side on 'Started' or 'Stopped'; leave empty for all.
@@ -604,7 +650,7 @@ def list_flows(state: str = "", top: int = 25) -> list[dict]:
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Flow", readOnlyHint=True))
-def get_flow(flow_id: str) -> dict:
+def get_flow(flow_id: str) -> FlowSummary:
     """Get one flow with its full definition - the JSON behind the designer's Code view.
 
     Returns the trigger names, action names, and the complete definition dict.
@@ -623,7 +669,7 @@ def get_flow(flow_id: str) -> dict:
         idempotentHint=False,  # calling twice gives you two flows with the same name
     )
 )
-def create_flow(display_name: str, definition: dict, start: bool = True) -> dict:
+def create_flow(display_name: str, definition: dict, start: bool = True) -> FlowSummary:
     """Create a flow from a workflow-definition dict.
 
     `definition` is the same JSON the designer shows under Code view. It needs
@@ -672,7 +718,7 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> dict
         idempotentHint=True,  # same definition twice lands the same state
     )
 )
-def update_flow_definition(flow_id: str, definition: dict, connection_references: dict | None = None) -> dict:
+def update_flow_definition(flow_id: str, definition: dict, connection_references: dict | None = None) -> FlowSummary:
     """Replace a flow's definition. Send the COMPLETE definition - there is no patch semantics.
 
     Standard use: get_flow -> edit the returned `definition` -> pass it here.
@@ -851,7 +897,7 @@ def run_flow(flow_id: str, trigger_name: str = "manual", inputs: Any = None) -> 
 
 
 @mcp.tool(annotations=ToolAnnotations(title="List Runs", readOnlyHint=True))
-def list_runs(flow_id: str, status: str = "", top: int = 10) -> list[dict]:
+def list_runs(flow_id: str, status: str = "", top: int = 10) -> list[RunSummary]:
     """List recent runs for a flow, newest first.
 
     status filter: 'Succeeded', 'Failed', 'Cancelled', 'Running'. Empty for all.
