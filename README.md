@@ -60,6 +60,7 @@ And when the error is clear but the *reason* is not:
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 - [What is deliberately missing](#what-is-deliberately-missing)
+- [Compared with Microsoft's plugin](#compared-with-microsofts-plugin)
 - [FAQ](#faq)
 
 ---
@@ -126,27 +127,55 @@ The code is regenerable. The accumulated knowledge in the docstrings is the asse
 `explain_run` is the tool a generic HTTP wrapper cannot give you, and it is worth
 understanding why before you read any other code here.
 
-**Power Automate does not put the error message on the action record.** A failed
-action comes back looking like this:
+**For connector failures, Power Automate does not put the error message on the
+action record.** A failed connector action comes back looking like this - measured,
+against a real Teams action posting to a channel that does not exist:
 
 ```json
 {
-  "name": "Compute_batches",
+  "name": "Post_message",
   "properties": {
     "status": "Failed",
-    "error": null,
+    "code": "NotFound",
     "outputsLink": {
-      "uri": "https://prod-08.westeurope.logic.azure.com/.../contents/ActionOutputs?sv=...&sig=...",
+      "uri": "https://<env>.environment.api.powerplatformusercontent.com/.../ActionOutputs?...&sig=...",
       "contentSize": 285
     }
   }
 }
 ```
 
-`error` is `null`. The real message lives inside a blob behind that short-lived
-SAS-signed URL. The portal follows the link for you, which is exactly why the
-portal shows you a real error and a naive API wrapper shows you `Failed` and
-nothing else.
+There is no `error` property at all. The real message lives inside a blob behind
+that short-lived signed URL. The portal follows the link for you, which is exactly
+why the portal shows you a real error and a naive API wrapper shows you `Failed`
+and nothing else.
+
+**Which failures actually behave this way.** This matters, and getting it wrong
+sends you chasing the wrong demo:
+
+| failure | `error` on the action | `outputsLink` |
+|---|---|---|
+| expression / `InvalidTemplate` (divide by zero, bad reference) | **inline, complete** | absent |
+| connector action (HTTP 4xx/5xx from Teams, SharePoint, Outlook) | **absent** | **present** |
+
+So an expression error needs no second hop, and a connector-free flow can never
+demonstrate this problem. `demo-flow.json` is the first kind; `demo-flow-connector.json`
+is the second, and it exists precisely to exercise this path.
+
+**And which field inside the blob.** `error.message` is routinely just the code
+restated - a real Teams 404 gives `{"code": "NotFound", "message": "NotFound"}`,
+which tells you nothing. The diagnosis is one level down:
+
+```json
+"innerError": {
+  "message": "LocationLookupFailed-Location lookup failed for thread 19:...@thread.tacv2"
+}
+```
+
+That names the offending value outright. `_resolve_error` prefers `innerError`,
+prefixes the HTTP status, and drops the code when it merely repeats the message,
+so you get one line: `404 NotFound: LocationLookupFailed-Location lookup failed
+for thread 19:...@thread.tacv2`.
 
 `explain_run` does two things a wrapper does not:
 
@@ -1025,6 +1054,26 @@ sidestepping gotchas 2 and 3 entirely. If you are building your own demo, copy t
 choice: connector-free flows are the only ones you can reliably create end to end
 from an API.
 
+### The second demo flow, and why it had to exist
+
+[`demo-flow-connector.json`](demo-flow-connector.json) posts to a Teams channel that
+does not exist.
+
+It exists because `demo-flow.json` **cannot demonstrate the tool this repository is
+built around**. A divide-by-zero is an expression error, and Power Automate returns
+those inline: the failed action carries a complete `error` and no `outputsLink` at
+all, so `_resolve_error` returns on its first branch and the blob hop never happens.
+The headline feature was unexercised by the headline demo, and nothing short of
+running it against a live tenant would have revealed that.
+
+The connector flow produces the other shape - no `error` property, everything in the
+blob - and it is the one to run when you want to see `explain_run` earn its keep. It
+costs you a connection that must already exist in the environment, and therefore a
+`bind_connection` call, which is a fair demonstration of gotchas 2 and 3 rather than
+a way around them.
+
+Keep both. They prove different things.
+
 ---
 
 ## Extending it
@@ -1138,9 +1187,10 @@ up too early, fix the skill.
 
 ## What is deliberately missing
 
-This is a teaching artifact, not a complete client. Left out on purpose: environment
-discovery, solution-bound flow editing, HTTP trigger URL retrieval, resubmit and
-cancel, desktop flows, and approvals.
+This is a teaching artifact, not a complete client. Left out of `server.py` on purpose:
+environment discovery, desktop flows, approvals, and cancel. Solution-bound flow editing,
+resubmit, trigger URLs and delete moved into `extras.py`, which runs as a second server
+so the teaching core stays at ten tools.
 
 Ten tools is about the number that fits in a talk while still covering a real loop:
 author, bind, run, diagnose. The production server this was extracted from runs
@@ -1149,12 +1199,62 @@ same four layers throughout.
 
 ---
 
+## Compared with Microsoft's plugin
+
+Microsoft ships [`power-platform-skills`](https://github.com/microsoft/power-platform-skills),
+whose `power-automate` plugin bundles a **56-tool** MCP server (`flowagent`) plus ten
+skills. Install it: it is good, and for most work it is more useful than this.
+
+Where theirs is straightforwardly better: connection lifecycle management, `search_operations`
+over connector metadata, surgical action-level `edit_flow`, a real backup and restore
+subsystem, templates, desktop flows, environment routing, a deprecated-operations table,
+and genuinely strong `$connections` / `$authentication` reference documentation. Their
+install is two slash commands; this one is a clone and a `pip install`. They ship MCP tool
+annotations and they handle solution `clientdata`. Their `validateDefinition` rule set is
+better than the one this repo had, so `_validate_definition` is a port of theirs.
+
+Where this one wins, measured on the same failed run in the same environment on
+2026-08-07 (a Teams post to a channel that does not exist):
+
+| | flowagent (56 tools) | pa-demo-mcp (10) |
+|---|---|---|
+| which action failed | yes | yes |
+| error text | `"message": ""` | `404 NotFound: LocationLookupFailed-Location lookup failed for thread 19:...` |
+| remediation | `"Target resource not found. Verify the item/list/folder still exists"` | - |
+| the failing action's inputs | not returned | resolved from the content link |
+| upstream value that caused it | unreachable by any of the 56 tools | `{"team_id": "0000...", "channel_id": "19:...dead"}` |
+| diff against a working run | no such tool | `compare_runs`, resolved both sides |
+
+Their `diagnoseRun` reads `a.properties?.error?.message ?? ""` straight off the action
+record and never follows a link, so on a connector failure the message is empty and the
+remediation is generic. Their `get_run_actions` drops action outputs entirely,
+`get_run_details` is run-level, and `get_run_action_repetitions` is loop-only - so there
+is no path from a failure to the value that caused it.
+
+**They tell you where it broke and what the error says. They cannot tell you why.**
+
+That is not a claim of general superiority; it is one tool, built by someone who hit that
+specific wall repeatedly, beating a much larger surface at the one question it was built
+to answer. Which is the entire argument of this repository.
+
+### Verified, and not
+
+Everything in the table above was run live, not read from source. Ten of ten tools have
+been exercised against a real tenant. Not verified: `update_solution_flow_definition`
+against an actual managed-solution flow, and anything in an environment without a
+Dataverse instance.
+
+---
+
 ## FAQ
 
 **Why not just use an official Power Platform MCP server?**
-Use one when it covers you. The reason to build your own is layer 4: no vendor can
-know that *your* connector always fails *this* way in *your* environment. You also
-frequently want three different APIs behind one server, which nobody ships for you.
+Often you should - Microsoft's is 56 tools and covers far more ground. See
+[Compared with Microsoft's plugin](#compared-with-microsofts-plugin) for a measured
+head-to-head. The reason to build your own is layer 4: no vendor can know that *your*
+connector always fails *this* way in *your* environment. The gap in that comparison
+is not a gap in their engineering, it is a gap in what a generic tool can know. You
+also frequently want three different APIs behind one server, which nobody ships for you.
 
 **Did Claude write this?**
 Layers 1 and 2, yes, essentially first try. Layers 3 and 4 are hand-written, because

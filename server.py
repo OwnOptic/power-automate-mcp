@@ -2,8 +2,8 @@
 
 Ten tools. One file. No framework beyond the official MCP SDK.
 
-The point of this server is NOT to be complete - the real one I run daily has 21
-Power Automate tools. The point is to show the four layers every useful MCP has,
+The point of this server is NOT to be complete - the real one I run daily has 24
+Power Automate tools, and Microsoft's own plugin ships 56. The point is to show the four layers every useful MCP has,
 and to show that the value is in layers 3 and 4, not layer 1:
 
     1. AUTH        get a token for the API                     (~40 lines, boring)
