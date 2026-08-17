@@ -3,8 +3,9 @@
 Ten tools. One file. No framework beyond the official MCP SDK.
 
 The point of this server is NOT to be complete - the real one I run daily has 24
-Power Automate tools, and Microsoft's own plugin ships 56. The point is to show the four layers every useful MCP has,
-and to show that the value is in layers 3 and 4, not layer 1:
+Power Automate tools, and Microsoft's own plugin ships 56. The point is to show
+the four layers every useful MCP has, and that the value is in layers 3 and 4,
+not layer 1:
 
     1. AUTH        get a token for the API                     (~40 lines, boring)
     2. TRANSPORT   call the API, retry, paginate                (~50 lines, boring)
@@ -66,7 +67,7 @@ mcp = FastMCP("pa-demo")
 # Conditional Access policy, so it can expire mid-session. You get AADSTS70043
 # and `az login` fixes it.
 #
-# THE SHARP EDGE, learned the hard way 2026-08-07. Borrowing the CLI's token means
+# THE SHARP EDGE, learned the hard way 2026-08-17. Borrowing the CLI's token means
 # borrowing whichever account is ACTIVE, and `az` holds many at once - one per
 # tenant you have ever logged into. `az account show` on a consultant's machine can
 # easily be a client's production service principal. This server then happily
@@ -87,7 +88,7 @@ def _tenant_args() -> list[str]:
     Read at call time, not import time, so a client that sets the variable after
     load_dotenv still gets it.
 
-    What `--tenant` actually does, verified 2026-08-07 - it is a GUARD, not a
+    What `--tenant` actually does, verified 2026-08-17 - it is a GUARD, not a
     switch. az mints the token using the credentials of the account that is
     currently ACTIVE, for the tenant you named. It does not go find the logged-in
     account that happens to live in that tenant. So:
@@ -259,7 +260,7 @@ class FlowSummary(TypedDict, total=False):
     This exists because layer 3 is the layer this project claims the value sits in,
     and an undeclared shape is a convention, not a contract. A caller has no way to
     know whether the key is `id`, `name` or `flow_id` short of reading the source -
-    and on 2026-08-07 a verification script guessed `id`, got None, and cascaded into
+    and on 2026-08-17 a verification script guessed `id`, got None, and cascaded into
     three 404s before anyone noticed. FastMCP turns this into a real outputSchema on
     the wire, so the client can check rather than guess.
 
@@ -314,7 +315,7 @@ def _resolve_error(props: dict) -> str | None:
     So the tool does the second hop itself. One extra HTTP call here saves the
     model three tool calls and a guess.
 
-    WHICH FAILURES ACTUALLY HIT THIS PATH, measured 2026-08-07:
+    WHICH FAILURES ACTUALLY HIT THIS PATH, measured 2026-08-17:
     An expression error (InvalidTemplate, divide-by-zero) IS inline - the action
     carries `error` and no outputsLink at all, so the first branch returns and the
     blob hop never happens. A CONNECTOR failure is the opposite: status Failed,
@@ -416,7 +417,7 @@ def _validate_definition(definition: dict, connection_references: dict | None = 
     checking turn a misleading server error into a readable local one.
 
     Rules ported from Microsoft's own flowagent bundle (validateDefinition,
-    plugins/power-automate/server/mcp.mjs:193) on 2026-08-07, because their list is
+    plugins/power-automate/server/mcp.mjs:193) on 2026-08-17, because their list is
     better than mine was. Credit where due: this is the one part of their server
     worth taking wholesale. It is also the part that is pure encoded knowledge, which
     rather makes the point about where the value in an MCP server sits.
@@ -574,7 +575,7 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
         GET https://api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections
     - and calling it with a service.flow.microsoft.com token returns 403 InvalidPath.
 
-    CORRECTED 2026-08-07. The sentence that used to sit here said you would need a second
+    CORRECTED 2026-08-17. The sentence that used to sit here said you would need a second
     app registration and a second consent. That is wrong, and reading Microsoft's own
     flowagent bundle is what showed it. Their list_connections does not use the Flow or
     PowerApps API at all - it asks Dataverse:

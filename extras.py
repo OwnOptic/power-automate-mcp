@@ -57,7 +57,7 @@ _org_cache: dict[str, str] = {}
 def _org_url(environment: str) -> str:
     """Resolve an environment's Dataverse org URL, cached per environment.
 
-    Returns e.g. https://org24646865.api.crm12.dynamics.com. Raises if the
+    Returns e.g. https://orgXXXXXXXX.api.crm4.dynamics.com. Raises if the
     environment has no Dataverse instance - several do not, and the failure is
     worth stating plainly rather than surfacing as a confusing 404 later.
     """
@@ -163,7 +163,7 @@ def get_trigger_url(flow_id: str) -> dict:
 
     The same URL the portal shows on the trigger card, via listCallbackUrl.
 
-    IT DOES NOT WORK ON BUTTON TRIGGERS, measured 2026-08-07 against a real flow:
+    IT DOES NOT WORK ON BUTTON TRIGGERS, measured 2026-08-17 against a real flow:
 
         400 The list callback url operation is blocked for triggers of type 'Request'.
 

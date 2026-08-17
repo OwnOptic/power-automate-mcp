@@ -16,8 +16,10 @@ should build your own MCP servers instead of waiting for someone to ship you one
 
   list_runs    -> 08d8...: Failed
   explain_run  -> Compute_batches failed:
-                  "The template language function 'div' was invoked with a
-                   divisor of zero."
+                  "Unable to process template language expressions in action
+                   'Compute_batches' inputs at line '0' and column '0':
+                   'Attempt to divide an integral or decimal value by zero
+                    in function 'div'.'."
                   Load_settings emitted {"region": "westeurope", "retries": 3,
                   "batch_size": 0} and Compute_batches divides 120 by batch_size.
 
@@ -427,13 +429,27 @@ lockfile covers Windows, macOS and Linux.
 environment from the Azure CLI, and there is no client id, no secret and no `.env`
 required. Skip to step 4.
 
-The single reason to create a `.env` is targeting a specific environment rather than
-the tenant default:
+Two optional settings, both about *which tenant and environment you land in*:
 
 ```ini
 # Optional. Find the GUID in the make.powerautomate.com URL after switching environment.
 PA_ENV_ID=Default-00000000-0000-0000-0000-000000000000
+
+# Strongly recommended if you have ever run `az login` against more than one tenant.
+PA_TENANT_ID=00000000-0000-0000-0000-000000000000
 ```
+
+**Set `PA_TENANT_ID` if you are a consultant, or on any machine with more than one
+tenant in `az`.** Borrowing the CLI's token means borrowing whichever account is
+*active*, and `az` holds many at once. `az account show` on a consultant's laptop is
+quite often a client's production service principal - at which point this server will
+cheerfully create and run flows in that client's tenant. Pinning makes the server
+declare the tenant it is for; if the active account cannot reach it you get a loud
+AADSTS50020 instead of a quiet write in the wrong place.
+
+It is a guard, not a switch. It will not go and find the right logged-in account for
+you - it only stops you using the wrong one. Unset is fine on a single-tenant machine
+and a live grenade on any other.
 
 There is no secret anywhere in this design. The only credential involved is the
 refresh token the Azure CLI already holds on your machine, which this repo never
@@ -1197,6 +1213,32 @@ author, bind, run, diagnose. The production server this was extracted from runs
 twenty-four Power Automate tools alongside Microsoft Graph and Teams, and it is the
 same four layers throughout.
 
+### Running `extras.py`
+
+[`extras.py`](extras.py) is a **second server**, registered separately, so `server.py`
+stays at ten tools. It adds `delete_flow` (which requires `confirm=True`),
+`resubmit_run`, `get_trigger_url`, `get_solution_flow_clientdata` and
+`update_solution_flow_definition`.
+
+```json
+{
+  "mcpServers": {
+    "pa-demo":        { "command": "python", "args": ["C:/path/to/pa-demo-mcp/server.py"] },
+    "pa-demo-extras": { "command": "python", "args": ["C:/path/to/pa-demo-mcp/extras.py"] }
+  }
+}
+```
+
+The interesting line is not in that config, it is at the top of `extras.py`:
+
+```python
+from server import _az, _call, _flow_summary, _tenant_args, _trim, env_id
+```
+
+Five more tools, zero new auth code and zero new transport code. Layers 1 and 2 are
+commodity - write them once and reuse them forever. Layer 4 is the part that had to
+be learned. That is the argument of this whole repository, expressed as an import.
+
 ---
 
 ## Compared with Microsoft's plugin
@@ -1214,7 +1256,7 @@ annotations and they handle solution `clientdata`. Their `validateDefinition` ru
 better than the one this repo had, so `_validate_definition` is a port of theirs.
 
 Where this one wins, measured on the same failed run in the same environment on
-2026-08-07 (a Teams post to a channel that does not exist):
+2026-08-17 (a Teams post to a channel that does not exist):
 
 | | flowagent (56 tools) | pa-demo-mcp (10) |
 |---|---|---|
