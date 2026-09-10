@@ -40,3 +40,8 @@ Work the loop in order. Skip a step only when you already hold its output.
 - Deterministic vs data-dependent: the same action failing in both compared runs
   with empty `output_changes` means the definition is wrong. Different upstream
   outputs mean the data is.
+- When the error points at the action's shape rather than its data (a missing
+  or unknown parameter, an operation that no longer exists), check the connector
+  reference with the Microsoft Learn MCP server before editing the definition.
+  Fetch `https://learn.microsoft.com/connectors/<connector>/` and confirm the
+  operationId, its keys, and whether it is marked `[DEPRECATED]`.

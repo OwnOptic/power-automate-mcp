@@ -700,8 +700,12 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> Flow
     Never inline a secret in a definition - it is stored in plaintext on the flow
     artifact. Use a Power Platform environment variable or Key Vault reference.
 
-    Look up connector operationIds and parameter schemas on Microsoft Learn rather
-    than guessing them. Guessing produces a flow that saves fine and fails at runtime.
+    Look up connector operationIds and parameter keys rather than guessing them.
+    Guessing produces a flow that saves fine and fails at runtime. With the Microsoft
+    Learn MCP server connected: microsoft_docs_search, then microsoft_docs_fetch on
+    https://learn.microsoft.com/connectors/<connector>/ (large, so search first).
+    That page marks deprecated operations. Where a parameter is typed `dynamic` it
+    stops at the top-level key - copy the nested shape from get_flow on a working flow.
     """
     warnings = _raise_on_errors(_validate_definition(definition))
     body = {"properties": {"displayName": display_name, "state": "Started" if start else "Stopped", "definition": definition}}

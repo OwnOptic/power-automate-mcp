@@ -18,8 +18,18 @@ description: Create or modify a Power Automate flow headlessly with the power-au
    Without them, connector flows 400 with an error blaming the trigger, which
    sends you hunting in the wrong place. Harmless on connector-free flows, so
    always include them.
-2. **Look up connector operationIds and parameter schemas on Microsoft Learn.**
-   Never guess them - a guessed operationId saves fine and fails at runtime.
+2. **Look up connector operationIds and parameter keys on Microsoft Learn.**
+   Never guess them - a guessed operationId saves fine and fails at runtime. Use
+   the Microsoft Learn MCP server (`microsoft_docs_search`, `microsoft_docs_fetch`):
+   - Fetch `https://learn.microsoft.com/connectors/<connector>/` once you know the
+     connector (`shared_teams` -> `teams`). Searching the bare operationId tends
+     to land on SDK pages instead.
+   - Connector pages are large (Teams is ~157k characters). Search first; fetch
+     only when the excerpt is not enough.
+   - Skip anything marked `[DEPRECATED]` and use the replacement it names.
+   - A parameter typed `dynamic` (e.g. Teams `body`) stops at the top-level key.
+     Take the nested shape from `get_flow` on a working flow - rule 4.
+   If the Learn server is not connected, say so rather than guessing.
 3. **Never inline a secret in a definition.** It is stored in plaintext on the
    flow artifact. Use a Power Platform environment variable or a Key Vault
    reference.

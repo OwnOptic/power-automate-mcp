@@ -54,7 +54,7 @@ And when the error is clear but the *reason* is not:
 - [The tool that justifies the exercise](#the-tool-that-justifies-the-exercise)
 - [Quick start](#quick-start) - [let Claude install it](#let-claude-install-it)
 - [Architecture: the four layers](#architecture-the-four-layers) - [transport: run it over stdio](#transport-run-it-over-stdio)
-- [Tool reference](#tool-reference)
+- [Tool reference](#tool-reference) - [companion server: Microsoft Learn MCP](#companion-server-microsoft-learn-mcp)
 - [Gotchas this server encodes](#gotchas-this-server-encodes)
 - [The demo flow](#the-demo-flow)
 - [Extending it](#extending-it)
@@ -305,9 +305,19 @@ PHASE 4 - Wire it into my MCP client
         "power-automate": {
           "command": "<absolute path to the venv python>",
           "args": ["<absolute path to server.py>"]
+        },
+        "microsoft-learn": {
+          "type": "http",
+          "url": "https://learn.microsoft.com/api/mcp"
         }
       }
     }
+
+    The second entry is the Microsoft Learn MCP server, which the model uses to look
+    up connector operationIds instead of guessing them. It is hosted by Microsoft,
+    read-only, and needs no sign-in. For Claude Desktop, leave it out of the JSON and
+    add https://learn.microsoft.com/api/mcp under Settings > Connectors > Add custom
+    connector instead - the JSON file is for local servers.
 
 18. Show me the exact file path you changed and the exact block you added. If the
     file already had other MCP servers, merge into the existing mcpServers object
@@ -323,24 +333,28 @@ PHASE 5 - Verify, read-only
     - 404: wrong environment. Get the GUID from the make.powerautomate.com URL and
       set PA_ENV_ID as in step 13.
     - "Run `az login` first": the CLI session died. Re-run `az login`.
+22. If Microsoft Learn was added, ask me to run: "What is the operationId for posting
+    a message to a Teams channel?" Expect `PostMessageToConversation`, cited from
+    learn.microsoft.com/connectors/teams. Anything else means the model answered
+    from memory rather than calling the Learn server.
 
 PHASE 6 - Optional end-to-end demo. ASK BEFORE STARTING.
-22. Explain to me first, then wait for a yes:
+23. Explain to me first, then wait for a yes:
     This creates a REAL flow called "DEMO - nightly batch" in the tenant I confirmed,
     from demo-flow.json in the repo. That flow is DELIBERATELY BROKEN: Load_settings
     emits batch_size 0 and Compute_batches divides 120 by it. The run is SUPPOSED to
     fail. That failure is the whole point of the demo.
     It is connector-free (button trigger plus two Compose actions), so it needs no
     connection binding and touches no business data.
-23. On my yes, in order: create_flow from demo-flow.json, run_flow, list_runs,
+24. On my yes, in order: create_flow from demo-flow.json, run_flow, list_runs,
     then explain_run on the failed run.
-24. Expected result, tell me whether it matches: explain_run names Compute_batches as
+25. Expected result, tell me whether it matches: explain_run names Compute_batches as
     the failed action, resolves the error to "The template language function 'div'
     was invoked with a divisor of zero", and shows Load_settings outputting
     batch_size 0. Symptom and cause are different actions, which is the point.
-25. Then offer to close the loop: update_flow_definition setting batch_size to 4,
+26. Then offer to close the loop: update_flow_definition setting batch_size to 4,
     run_flow again, list_runs. Expect Succeeded with output 30.
-26. Finally, remind me the demo flow still exists and this server has no delete tool
+27. Finally, remind me the demo flow still exists and this server has no delete tool
     on purpose, so I should remove "DEMO - nightly batch" from the maker portal when
     I am done.
 
@@ -470,14 +484,24 @@ default here.
     "power-automate": {
       "command": "python",
       "args": ["C:/path/to/power-automate-mcp/server.py"]
+    },
+    "microsoft-learn": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
     }
   }
 }
 ```
 
-**Claude Desktop** - same block, in `claude_desktop_config.json`:
+The `microsoft-learn` entry is optional and recommended. See
+[Companion server: Microsoft Learn MCP](#companion-server-microsoft-learn-mcp).
+
+**Claude Desktop** - the `power-automate` entry, in `claude_desktop_config.json`:
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+That file is for local servers. Add Microsoft Learn under **Settings > Connectors >
+Add custom connector** with the URL `https://learn.microsoft.com/api/mcp` instead.
 
 Use an absolute path to `server.py`. The server resolves `.env` relative to its own
 file, so the working directory does not matter.
@@ -621,13 +645,15 @@ this repo is arguing for.
 
 ## Tool reference
 
-Ten tools in three groups.
+Ten tools in three groups, plus a companion server for the documentation lookups
+none of them can do.
 
 | Group | Tools |
 | --- | --- |
 | **Author** | `list_flows`, `get_flow`, `create_flow`, `update_flow_definition`, `bind_connection` |
 | **Operate** | `run_flow`, `list_runs` |
 | **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` |
+| **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` |
 
 Which one to reach for:
 
@@ -881,6 +907,80 @@ The `verdict` distinguishes the two cases that call for different responses: fai
 concentrated in one action mean a targeted fix, while failures spread across many
 actions usually mean the trigger data or a connection rather than the logic.
 
+### Companion server: Microsoft Learn MCP
+
+The ten tools build, run and diagnose flows. None of them can tell you what goes
+*inside* a connector action: its `operationId`, its parameter keys, whether it has been
+deprecated. Guessing those produces a flow that saves cleanly and fails at runtime
+([gotcha 7](#7-look-connector-operationids-up-do-not-guess-them)). That knowledge
+already has an official MCP server, so this repo connects it rather than rebuilding it.
+
+The [Microsoft Learn MCP Server](https://learn.microsoft.com/training/support/mcp-get-started)
+is hosted by Microsoft, free, read-only, and needs no sign-in and no API key:
+
+```
+https://learn.microsoft.com/api/mcp
+```
+
+It is the one exception to [run it over stdio](#transport-run-it-over-stdio). That
+recommendation exists because this server borrows a local credential. The Learn server
+has no credential to protect, so a remote transport costs nothing.
+
+**Install.** This repo ships a [`.mcp.json`](.mcp.json) containing only the Learn
+entry, so opening the repo in Claude Code offers it (approve it on first use). In
+another project, add the `microsoft-learn` block from [step 4](#4-connect-it-to-your-client),
+or:
+
+```bash
+claude mcp add --transport http microsoft-learn https://learn.microsoft.com/api/mcp
+```
+
+Microsoft also publishes it as a Claude Code plugin, `microsoft-docs`, which adds three
+general-purpose Learn skills on top. See their
+[getting-started page](https://learn.microsoft.com/training/support/mcp-get-started).
+
+| Tool | Use it here for |
+| --- | --- |
+| `microsoft_docs_search` | Finding the connector reference and the action you need. Up to 10 excerpts, each at most 500 tokens. |
+| `microsoft_docs_fetch` | Reading a whole page, e.g. `https://learn.microsoft.com/connectors/teams/`: every operationId, its parameter keys, its deprecation status. |
+| `microsoft_code_sample_search` | Rarely needed here. Its `language` filter has no JSON option, and flow definitions are JSON. |
+
+Where it sits in the authoring loop:
+
+1. `get_flow` on a working flow that does something similar
+2. `microsoft_docs_search`, then `microsoft_docs_fetch`, for the operationId and keys
+3. `create_flow`, then `bind_connection` if it uses a connector
+4. `run_flow`, `list_runs`, `explain_run` if it failed
+
+**What it will and will not tell you**, measured against the Teams connector on
+2026-09-10:
+
+- **The operationId and top-level keys, not the body.** "Post message in a chat or
+  channel" is `PostMessageToConversation`, with keys `poster`, `location` and `body`,
+  and `body` is typed `dynamic`. The nested paths a working definition actually uses,
+  such as the doubled `body/body/messageBody` from gotcha 7, are not on the page.
+  Learn tells you *which* operation. `get_flow` on a working flow tells you *how to fill
+  it*. You need both.
+- **Deprecated operations are labelled.** The page marks
+  `SubscribeChannelFlowContinuation` and `SubscribeUserFlowContinuation` as
+  `[DEPRECATED]`, a few lines from their replacement, `PostCardAndWaitForResponse`.
+  Check before you copy an action out of an old flow.
+- **Fetching a connector page is expensive.** The Teams reference came back at about
+  157,000 characters, more than a single tool result holds. Search first, and fetch
+  only when the excerpt is not enough. Appending `?maxTokenBudget=2000` to the endpoint
+  URL caps *search* responses only, not fetches.
+- **Search by operationId finds the wrong page.** Searching `PostMessageToConversation`
+  returned the .NET `Azure.Connectors.Sdk` reference and a Power Automate how-to, not
+  the connector reference. Once you know the connector, go straight to
+  `learn.microsoft.com/connectors/<connector>/`. The slug is usually the logical name
+  without `shared_`, e.g. `shared_teams` becomes `teams`.
+
+Why a companion server instead of an eleventh tool: it is the same argument as
+[`extras.py`](#running-extraspy), from the other side. Build the layer nobody ships
+you, and connect the one somebody already maintains. Looking up documentation is a
+commodity. Knowing that `body` stops at `dynamic` and the real shape lives in a
+working flow is not.
+
 ---
 
 ## Gotchas this server encodes
@@ -1038,9 +1138,14 @@ Platform environment variable or a Key Vault reference and resolve it at runtime
 
 Connector actions need the exact `operationId` and the exact parameter names.
 Guessing produces a flow that saves cleanly and fails at runtime, which is the
-worst possible failure mode. Search
-[Microsoft Learn connector reference](https://learn.microsoft.com/connectors/) for
-the connector, or read the definition of a working flow built in the portal.
+worst possible failure mode.
+
+Connect the [Microsoft Learn MCP server](#companion-server-microsoft-learn-mcp) and
+the model does the lookup itself, against the
+[connector reference](https://learn.microsoft.com/connectors/). That gives you the
+operationId and the top-level keys. Where a parameter is typed `dynamic`, the page
+stops there, and the nested shape has to come from `get_flow` on a working flow built
+in the portal.
 
 A representative example of how non-obvious these get: the Teams "post adaptive
 card and wait for a response" action is `PostCardAndWaitForResponse`, its
