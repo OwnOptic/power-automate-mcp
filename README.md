@@ -6,6 +6,55 @@
 One file. Ten tools. Built as a teaching artifact for a community talk on why you
 should build your own MCP servers instead of waiting for someone to ship you one.
 
+## The short version
+
+**What it does.** Claude can list, build, run and fix your flows. When a run fails,
+`explain_run` tells you *why*: it fetches the real error that Power Automate hides
+behind a link, and shows the value from an earlier step that caused it.
+
+**What you need.** Python 3.10+, the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli),
+and a Power Platform environment. No app registration, no secret: it signs in with
+your own `az login`.
+
+**Set it up.**
+
+```bash
+git clone https://github.com/OwnOptic/power-automate-mcp.git
+cd power-automate-mcp
+pip install -r requirements.txt
+az login
+```
+
+Then add this to `.mcp.json` (Claude Code), using the absolute path to `server.py`:
+
+```json
+{
+  "mcpServers": {
+    "power-automate": { "command": "python", "args": ["/absolute/path/to/server.py"] },
+    "microsoft-learn": { "type": "http", "url": "https://learn.microsoft.com/api/mcp" }
+  }
+}
+```
+
+`microsoft-learn` is optional: it lets Claude look up connector actions in Microsoft's
+documentation instead of guessing them. On Claude Desktop, put `power-automate` in
+`claude_desktop_config.json` and add the Learn URL under Settings > Connectors.
+
+**Try it.** Restart your client, then ask:
+
+- "List my flows."
+- "Why did *flow name* fail last night?"
+- "Create a flow from demo-flow.json and run it." (It is meant to fail. Then ask why.)
+
+> **Use a test environment.** The server acts as you, so it can change anything you
+> can. If your `az` is signed in to more than one tenant, pin the right one with
+> `PA_TENANT_ID=<tenant id>` in a `.env` file next to `server.py`.
+
+Everything below is the long version: how it works, the Power Automate traps it
+handles, and why you might build your own.
+
+## What it looks like
+
 ```
 > Create a flow from demo-flow.json and run it.
 
