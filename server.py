@@ -112,7 +112,8 @@ def _az(args: list[str]) -> str:
     user-supplied free text.
     """
     cmd = "az " + " ".join(f'"{a}"' if " " in a else a for a in args)
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True,
+                          stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout).strip()[:400]
         raise RuntimeError(f"Azure CLI call failed ({cmd}): {err}\nRun `az login` first.")
@@ -269,14 +270,18 @@ class FlowSummary(TypedDict, total=False):
     `previous_definition` only on update.
     """
 
-    flow_id: str
-    display_name: str
-    state: str
-    modified: str
-    triggers: list[str]
-    actions: list[str]
-    definition: dict[str, Any]
-    warnings: list[dict[str, Any]]
+    # Every field is `| None`: FastMCP serialises a total=False TypedDict with the missing
+    # keys filled in as null, then validates that against this schema. A bare `list[str]`
+    # made create_flow and update_flow_definition fail AFTER the API call had succeeded -
+    # the flow existed, the model saw an error, and a retry would have made a duplicate.
+    flow_id: str | None
+    display_name: str | None
+    state: str | None
+    modified: str | None
+    triggers: list[str] | None
+    actions: list[str] | None
+    definition: dict[str, Any] | None
+    warnings: list[dict[str, Any]] | None
     previous_definition: dict[str, Any] | None
 
 
@@ -284,10 +289,10 @@ class RunSummary(TypedDict, total=False):
     """One run, shaped. `error` is the run-level envelope, not the action error -
     for that you want explain_run, which does the second hop."""
 
-    run_id: str
-    status: str
-    start_time: str
-    end_time: str
+    run_id: str | None
+    status: str | None
+    start_time: str | None
+    end_time: str | None  # None while the run is still Running - must not fail validation
     error: dict[str, Any] | None
 
 
@@ -563,7 +568,7 @@ def _duration_seconds(start: str | None, end: str | None) -> float | None:
     return (b - a).total_seconds() if a and b else None
 
 
-def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
+def _discover_connections(max_flows: int = 50) -> dict[str, dict]:  # API rejects $top > 50 (400)
     """Union the connections referenced by the environment's flows, keyed by connection id.
 
     IN-USE ONLY, and that is a limitation of the API, not a shortcut.
@@ -627,6 +632,89 @@ def _discover_connections(max_flows: int = 60) -> dict[str, dict]:
             )
             entry["used_by_flows"].append(flow_name)
 
+    return found
+
+
+_CONNECTOR_ACTION_TYPES = {"OpenApiConnection", "OpenApiConnectionWebhook", "OpenApiConnectionNotification"}
+
+
+def _uses_connectors(definition: dict) -> bool:
+    """True when any trigger or action (nested scopes included) is a connector call."""
+    def walk(nodes: dict) -> bool:
+        for node in (nodes or {}).values():
+            if not isinstance(node, dict):
+                continue
+            if node.get("type") in _CONNECTOR_ACTION_TYPES:
+                return True
+            for key in ("actions", "else", "default"):
+                inner = node.get(key)
+                if isinstance(inner, dict) and walk(inner.get("actions", inner) if key == "else" else inner):
+                    return True
+            if any(walk(case.get("actions", {})) for case in (node.get("cases") or {}).values()):
+                return True
+        return False
+    return walk(definition.get("triggers", {})) or walk(definition.get("actions", {}))
+
+
+def _bound_connection_references(flow_id: str) -> dict[str, dict]:
+    """The flow's live bindings, reshaped as the connectionReferences a PATCH needs."""
+    try:
+        raw = _call("GET", f"/environments/{env_id()}/flows/{flow_id}/connections")
+    except RuntimeError:
+        return {}
+    refs: dict[str, dict] = {}
+    for conn in raw if isinstance(raw, list) else raw.get("value", []):
+        api_id = (conn.get("properties", {}) or {}).get("apiId") or ""
+        connector = api_id.split("/")[-1]
+        if connector and conn.get("name"):
+            refs[connector] = {"connectionName": conn["name"], "source": "Embedded", "id": api_id}
+    return refs
+
+
+def _environment_connections(connector: str) -> dict[str, dict] | None:
+    """Every connection for `connector` in the environment, including ones no flow uses yet.
+
+    ADDED 2026-09-16, and it retires the in-use-only limit for bind_connection. The route
+    the note above rules out is the per-environment path. The one that works is the
+    top-level collection filtered by environment, on the PowerApps host with a PowerApps
+    audience token, which `az` mints like any other:
+        GET https://api.powerapps.com/providers/Microsoft.PowerApps/connections
+            ?api-version=2016-11-01&$filter=environment eq '<env>'
+    Measured against the MVP tenant: 200 and the full list, where
+    /environments/{env}/connections is a 404 on the same host.
+
+    This is what makes "create a connection in the portal, then bind it" work in one go:
+    a connection created a minute ago is on no flow, so the flow walk cannot see it.
+
+    Returns None (not {}) when the call itself fails, so the caller can fall back to the
+    flow walk instead of reporting a false not_found.
+    """
+    try:
+        token = _az(["account", "get-access-token", "--resource", "https://service.powerapps.com/",
+                     *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
+        r = _http.get(
+            "https://api.powerapps.com/providers/Microsoft.PowerApps/connections",
+            params={"api-version": "2016-11-01", "$filter": f"environment eq '{env_id()}'"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        r.raise_for_status()
+    except Exception:  # noqa: BLE001 - discovery must degrade, never take the tool down
+        return None
+    found: dict[str, dict] = {}
+    for conn in r.json().get("value", []):
+        props = conn.get("properties", {}) or {}
+        if (props.get("apiId") or "").split("/")[-1] != connector:
+            continue
+        status = (props.get("statuses") or [{}])[0].get("status")
+        if status != "Connected":
+            continue  # an Error/expired connection binds fine and then fails every run
+        found[conn["name"]] = {
+            "connection_name": conn["name"],
+            "display_name": props.get("displayName"),
+            "connector": connector,
+            "status": status,
+            "created": props.get("createdTime"),
+        }
     return found
 
 
@@ -728,8 +816,11 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
 
     Standard use: get_flow -> edit the returned `definition` -> pass it here.
 
-    `connection_references` is required for connector flows, shaped like
-    {"shared_office365": {"connectionName": "shared-office365-<guid>",
+    `connection_references` can be omitted on a flow already bound with bind_connection:
+    the tool reads the live bindings and carries them over (get_flow shows {} for them,
+    so there is nothing to copy by hand). Pass it explicitly only to CHANGE a binding,
+    shaped like
+    {"shared_office365": {"connectionName": "<32-hex connection id>",
                           "source": "Embedded",
                           "id": "/providers/Microsoft.PowerApps/apis/shared_office365"}}.
 
@@ -751,6 +842,15 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
             .get("properties", {}).get("definition")
     except Exception:  # noqa: BLE001 - never let the safety net block the operation
         previous = None
+
+    # Carry the flow's existing bindings when the caller did not pass any. Measured
+    # 2026-09-16 on a flow bound by bind_connection: get_flow reports connectionReferences
+    # as {} even though the binding is live, so the model has nothing to copy - and a
+    # PATCH without them 400s with "Property 'host.connectionReferenceName' is missing",
+    # which points at solution connection references and is the wrong trail entirely.
+    # /flows/{id}/connections DOES list the live bindings, so derive them from there.
+    if not connection_references and _uses_connectors(definition):
+        connection_references = _bound_connection_references(flow_id) or None
 
     props: dict[str, Any] = {"definition": definition}
     if connection_references:
@@ -791,10 +891,13 @@ def bind_connection(
     `connector` is the connector's logical name, e.g. "shared_office365",
     "shared_teams", "shared_sharepointonline".
 
-    `connection_name` is the concrete connection id, e.g. "shared-office365-8f3a...".
-    Leave it empty and the tool resolves it automatically. If the environment has
-    several connections for that connector, it does NOT guess: it returns
-    status "ambiguous" with the candidates so you can pass one explicitly.
+    `connection_name` is the concrete connection id. In the environments measured it
+    is a bare 32-hex GUID ("4f9d05ecf89048a09f58d4f8f718785e"), not "shared-office365-...".
+    Leave it empty and the tool resolves it automatically from the environment's
+    connection list, so a connection created in the portal a minute ago is found even
+    though no flow uses it yet. Only Connected connections count. If several match, it
+    does NOT guess: it returns status "ambiguous" with display names and created times
+    so you can pass one explicitly (the newest is usually the one just created).
 
     THE CONNECTION MUST ALREADY EXIST in the environment. No API reachable with a
     Flow token can create and authenticate a brand new connection - that is a portal
@@ -803,15 +906,16 @@ def bind_connection(
     Does NOT work on solution or portal-bound flows: their connections are Dataverse
     connection references which cannot be minted here. Edit those in the portal.
     """
-    candidates = (
-        {connection_name: {"connection_name": connection_name, "connector": connector}}
-        if connection_name
-        else {
-            cid: c
-            for cid, c in _discover_connections().items()
-            if c["connector"] == connector
-        }
-    )
+    if connection_name:
+        candidates = {connection_name: {"connection_name": connection_name, "connector": connector}}
+    else:
+        candidates = _environment_connections(connector)
+        if candidates is None:  # environment listing unavailable: fall back to the flow walk
+            candidates = {
+                cid: c
+                for cid, c in _discover_connections().items()
+                if c["connector"] == connector
+            }
 
     if not candidates:
         return {
