@@ -808,13 +808,20 @@ flow cannot be started. Binding is a separate PATCH that must carry both the ful
 definition *and* the connection reference. This tool does the whole sequence in one
 call: resolve the connection, PATCH definition plus reference, start the flow.
 
-Returns one of four statuses:
+It resolves the connection from the environment's full connection list, so a
+connection created in the portal a minute ago binds even though no flow uses it yet.
+Only `Connected` connections count. A flow with several connectors is bound in one
+save, because the API rejects a save that leaves any connector action unbound, and
+existing bindings are merged rather than dropped.
+
+Returns one of five statuses:
 
 | `status` | Meaning |
 | --- | --- |
 | `bound` | Success. Check `connections_on_flow` is at least 1. |
-| `ambiguous` | Several connections match this connector. Candidates returned; re-call with `connection_name`. |
-| `not_found` | No connection for this connector is visible. Create it in the portal first. |
+| `ambiguous` | Several connections match this connector. Candidates returned with display names and created times; re-call with `connection_name`. |
+| `not_found` | No `Connected` connection for this connector. `create_url` opens the portal Connections page. |
+| `incomplete` | The flow uses other connectors that could not be resolved. Nothing was bound; each one is listed with a `create_url`. |
 | (raises) | Portal-bound flow, or the flow does not exist. |
 
 It deliberately does **not** guess when several connections match, because binding
@@ -1158,6 +1165,13 @@ uses yet is invisible.** For the question that actually matters, "is connector X
 connected here and what is its `connectionName`", any bindable connection is normally
 referenced by at least one flow.
 
+> **Update, 16 September 2026: the trade-off is retired.** The second-registration claim
+> above was wrong. The top-level collection filtered by environment works with an
+> `aud=service.powerapps.com` token, which `az` mints like any other:
+> `GET https://api.powerapps.com/providers/Microsoft.PowerApps/connections?api-version=2016-11-01&$filter=environment eq '<env>'`.
+> Measured on a live tenant: 200 and the full list. `bind_connection` and `create_flow`
+> now use it, and fall back to the flow walk above only when that call fails.
+
 ```mermaid
 flowchart TB
     N["You need a connectionName to bind a connection"]
@@ -1326,7 +1340,7 @@ up too early, fix the skill.
 | Create returns 400 about `$authentication` | Magic parameters missing | See [gotcha 2](#2-connector-flows-need-the-two-magic-parameters) |
 | `CannotStartUnpublishedSolutionFlow` | Connections not bound | See [gotcha 3](#3-creating-a-flow-does-not-bind-its-connections) |
 | `explain_run` returns `[error blob unavailable]` | SAS URL expired | Re-run the flow and debug the fresh failure |
-| `bind_connection` returns `not_found` | Connection does not exist, or no flow references it yet | Create and authenticate it in the portal, or use it on one flow first |
+| `bind_connection` returns `not_found` | No `Connected` connection for that connector (missing, or in an error state) | Open `create_url`, create or repair it in the portal, then call again |
 | `bind_connection` returns `ambiguous` | Several connections for that connector | Re-call with `connection_name` set to one of the returned candidates |
 | `bind_connection` succeeds but `connections_on_flow` is 0 | Flow is solution or portal-bound | Edit that flow in the portal, see [gotcha 4](#4-portal-bound-flows-cannot-be-updated-through-this-api) |
 | `analyze_flow_health` returns `duration_seconds: null` | No successful runs to measure | Expected on a flow that has never succeeded |

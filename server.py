@@ -283,6 +283,7 @@ class FlowSummary(TypedDict, total=False):
     definition: dict[str, Any] | None
     warnings: list[dict[str, Any]] | None
     previous_definition: dict[str, Any] | None
+    missing_connections: list[dict[str, Any]] | None  # create_flow only: [{connector, create_url}]
 
 
 class RunSummary(TypedDict, total=False):
@@ -396,6 +397,35 @@ def _resolve_content(value: Any) -> Any:
             "_unresolved": "content link expired or unreachable - re-run the flow",
             "contentSize": value.get("contentSize"),
         }
+
+
+def _shape_payload(value: Any) -> Any:
+    """Reduce a resolved connector payload to the data a person would actually read.
+
+    ADDED 2026-09-16, found rehearsing a Dataverse "List rows" demo. A connector
+    action's outputs are the whole HTTP response: ~1.5 KB of headers, cookies and
+    rate-limit counters, then the body, where every row carries @odata.etag and a
+    FormattedValue annotation per column. _trim cut at 2000 characters, inside the
+    headers - so explain_run showed Set-Cookie and never reached numberofemployees: 0,
+    the value that explained the failure. compare_runs was worse: cookies and request
+    ids differ on every run, so two runs reading the SAME row reported an output change.
+
+    So: keep the body (and the status code only when it is not a 2xx), drop headers,
+    and drop any key that is an annotation - it starts with "@" or contains "@OData"
+    or "@Microsoft". What is left is the row as the flow's expressions see it.
+    """
+    if isinstance(value, dict) and "body" in value and ("headers" in value or "statusCode" in value):
+        status = value.get("statusCode")
+        body = _shape_payload(value.get("body"))
+        if isinstance(status, int) and not 200 <= status < 300:
+            return {"statusCode": status, "body": body}
+        return body
+    if isinstance(value, dict):
+        return {k: _shape_payload(v) for k, v in value.items()
+                if not (k.startswith("@") or "@OData" in k or "@Microsoft" in k)}
+    if isinstance(value, list):
+        return [_shape_payload(v) for v in value]
+    return value
 
 
 _VALID_TRIGGER_TYPES = {
@@ -522,6 +552,37 @@ def _validate_definition(definition: dict, connection_references: dict | None = 
                         f"connectionReferences.{ref}")
 
     return issues
+
+
+def _normalise_definition(definition: dict) -> list[dict]:
+    """Fill in shapes the API accepts but the portal designer chokes on. Mutates in place.
+
+    ADDED 2026-09-16. A Button trigger saved with "schema": {} creates, starts and runs
+    fine, then the new designer refuses to open the flow: "Cannot set properties of
+    undefined (setting 'location')". It injects the hidden button inputs (location,
+    timestamp) into schema.properties, and properties is missing. The classic designer
+    repairs it on save, which is how the missing keys were spotted. Filling them here
+    means a flow Claude builds always opens in the portal.
+
+    Returns warning-shaped notes for what it changed, so the caller can surface them.
+    """
+    notes: list[dict] = []
+    for name, trigger in (definition.get("triggers") or {}).items():
+        if trigger.get("type") != "Request" or trigger.get("kind") != "Button":
+            continue
+        inputs = trigger.setdefault("inputs", {})
+        schema = inputs.get("schema")
+        if not isinstance(schema, dict):
+            schema = inputs["schema"] = {}
+        added = [k for k, v in (("type", "object"), ("properties", {}), ("required", [])) if k not in schema]
+        for key in added:
+            schema[key] = {"type": "object", "properties": {}, "required": []}[key]
+        if added:
+            notes.append({"severity": "warning", "rule": "button-schema-normalised",
+                          "message": f"Added {', '.join(added)} to the Button trigger schema. Without "
+                                     "them the new designer cannot open the flow.",
+                          "path": f"triggers.{name}.inputs.schema"})
+    return notes
 
 
 def _raise_on_errors(issues: list[dict]) -> list[dict]:
@@ -718,6 +779,47 @@ def _environment_connections(connector: str) -> dict[str, dict] | None:
     return found
 
 
+def _connections_page_url() -> str:
+    """Maker-portal Connections page for this environment: where a missing connection is created.
+
+    Creating a connection is an OAuth sign-in, so the most a tool can do is hand over
+    the exact page. + New connection is one click from there.
+    """
+    return f"https://make.powerautomate.com/environments/{env_id()}/connections"
+
+
+def _definition_connectors(node: Any) -> set[str]:
+    """Connector logical names (shared_office365, ...) used anywhere in a definition.
+
+    Walks the whole tree, because connector actions nest inside Scope, Condition,
+    Switch and Foreach blocks, not only at the top level of `actions`.
+    """
+    found: set[str] = set()
+    if isinstance(node, dict):
+        api_id = (node.get("host") or {}).get("apiId") if isinstance(node.get("host"), dict) else None
+        if isinstance(api_id, str) and "/apis/" in api_id:
+            found.add(api_id.split("/")[-1])
+        for value in node.values():
+            found |= _definition_connectors(value)
+    elif isinstance(node, list):
+        for value in node:
+            found |= _definition_connectors(value)
+    return found
+
+
+def _missing_connections(definition: dict) -> list[dict]:
+    """Connectors the definition needs that have no Connected connection in the environment.
+
+    Skipped silently when the environment listing is unavailable: a guess would send
+    the user to create a connection they may already have.
+    """
+    missing = []
+    for connector in sorted(_definition_connectors(definition)):
+        if _environment_connections(connector) == {}:
+            missing.append({"connector": connector, "create_url": _connections_page_url()})
+    return missing
+
+
 # ---------------------------------------------------------------------------
 # LAYER 4 - TOOLS
 # Ten tools covering one loop: see -> build -> run -> fail -> understand -> fix.
@@ -785,6 +887,11 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> Flow
        Request, Compose, HTTP) start immediately, which is why the demo flow uses
        those.
 
+    If the environment has no Connected connection for a connector the definition
+    uses, the result carries `missing_connections`: [{connector, create_url}]. Show
+    the user create_url - the portal Connections page, where + New connection creates
+    it - then call bind_connection once they have signed in.
+
     Never inline a secret in a definition - it is stored in plaintext on the flow
     artifact. Use a Power Platform environment variable or Key Vault reference.
 
@@ -795,11 +902,15 @@ def create_flow(display_name: str, definition: dict, start: bool = True) -> Flow
     That page marks deprecated operations. Where a parameter is typed `dynamic` it
     stops at the top-level key - copy the nested shape from get_flow on a working flow.
     """
-    warnings = _raise_on_errors(_validate_definition(definition))
+    notes = _normalise_definition(definition)
+    warnings = _raise_on_errors(_validate_definition(definition)) + notes
     body = {"properties": {"displayName": display_name, "state": "Started" if start else "Stopped", "definition": definition}}
     out = _flow_summary(_call("POST", f"/environments/{env_id()}/flows", body=body))
     if warnings:
         out["warnings"] = warnings
+    missing = _missing_connections(definition)
+    if missing:
+        out["missing_connections"] = missing
     return out
 
 
@@ -830,7 +941,8 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
     `connectionReferenceName`, and the reference itself cannot be minted here).
     Edit those in the portal.
     """
-    warnings = _raise_on_errors(_validate_definition(definition, connection_references))
+    notes = _normalise_definition(definition)
+    warnings = _raise_on_errors(_validate_definition(definition, connection_references)) + notes
 
     # Snapshot before overwriting. This endpoint has no patch semantics and no undo:
     # a definition missing an action does not merge, it deletes that action. Reading
@@ -901,7 +1013,14 @@ def bind_connection(
 
     THE CONNECTION MUST ALREADY EXIST in the environment. No API reachable with a
     Flow token can create and authenticate a brand new connection - that is a portal
-    action. If none is found this returns status "not_found" rather than failing.
+    action. If none is found this returns status "not_found" rather than failing, with
+    `create_url` pointing at the portal Connections page: give the user that link.
+
+    A flow with several connectors (say Dataverse + Outlook) is bound in ONE call: name
+    any one of them, and the tool resolves the others by the same rule and saves them
+    together, because the API rejects a save that leaves any connector action unbound.
+    If one is missing it binds nothing and returns status "incomplete", listing each
+    unresolved connector with a create_url. Existing bindings are merged, never dropped.
 
     Does NOT work on solution or portal-bound flows: their connections are Dataverse
     connection references which cannot be minted here. Edit those in the portal.
@@ -921,11 +1040,11 @@ def bind_connection(
         return {
             "status": "not_found",
             "connector": connector,
+            "create_url": _connections_page_url(),
             "message": (
-                f"No connection for '{connector}' is referenced by any flow in this "
-                "environment. Either it does not exist yet (create and authenticate it "
-                "in the maker portal - no API here can do that), or it exists but no "
-                "flow uses it yet, which makes it invisible to connection discovery."
+                f"No Connected connection for '{connector}' in this environment. Either it "
+                "does not exist yet, or it exists but is in an error state. Open create_url, "
+                "use + New connection (or fix the broken one), sign in, then call this again."
             ),
         }
     if len(candidates) > 1:
@@ -939,21 +1058,47 @@ def bind_connection(
     resolved = next(iter(candidates))
     definition = _call("GET", f"/environments/{env_id()}/flows/{flow_id}")["properties"]["definition"]
 
+    def reference(conn: str, name: str) -> dict:
+        return {"connectionName": name, "source": "Embedded", "id": f"/providers/Microsoft.PowerApps/apis/{conn}"}
+
+    # Merge, never replace: the PATCH sets connectionReferences wholesale.
+    references = _bound_connection_references(flow_id)
+    references[connector] = reference(connector, resolved)
+
+    # Every connector in the definition must be bound in the SAME save. Measured
+    # 2026-09-16 on a Dataverse + Outlook flow: binding Outlook alone 400s with
+    # "Property 'host.connectionReferenceName' is missing" on the Dataverse action,
+    # which reads like a solution problem and is not. So resolve the others here too,
+    # by the same rule (exactly one Connected connection), and bind nothing if any
+    # is still missing.
+    unresolved = []
+    for other in sorted(_definition_connectors(definition) - set(references)):
+        found = _environment_connections(other)
+        if found is not None and len(found) == 1:
+            references[other] = reference(other, next(iter(found)))
+        else:
+            unresolved.append({
+                "connector": other,
+                "status": "ambiguous" if found else "not_found",
+                "candidates": list(found.values()) if found else [],
+                "create_url": _connections_page_url(),
+            })
+    if unresolved:
+        return {
+            "status": "incomplete",
+            "flow_id": flow_id,
+            "ready": sorted(references),
+            "unresolved": unresolved,
+            "message": (
+                "Nothing was bound: this flow uses several connectors and all of them must be "
+                "bound in one save. Create the not_found connection(s) at create_url (or pick "
+                "one of the ambiguous candidates), then call bind_connection again."
+            ),
+        }
     _call(
         "PATCH",
         f"/environments/{env_id()}/flows/{flow_id}",
-        body={
-            "properties": {
-                "definition": definition,
-                "connectionReferences": {
-                    connector: {
-                        "connectionName": resolved,
-                        "source": "Embedded",
-                        "id": f"/providers/Microsoft.PowerApps/apis/{connector}",
-                    }
-                },
-            }
-        },
+        body={"properties": {"definition": definition, "connectionReferences": references}},
     )
 
     started = None
@@ -1051,10 +1196,10 @@ def explain_run(flow_id: str, run_id: str) -> dict:
         record = {"name": action.get("name"), "status": props.get("status")}
         if props.get("status") == "Failed":
             record["error"] = _resolve_error(props)
-            record["inputs"] = _trim(_resolve_content(props.get("inputsLink") or props.get("inputs")))
+            record["inputs"] = _trim(_shape_payload(_resolve_content(props.get("inputsLink") or props.get("inputs"))))
             failed.append(record)
         elif props.get("status") == "Succeeded":
-            record["outputs"] = _trim(_resolve_content(props.get("outputsLink") or props.get("outputs")))
+            record["outputs"] = _trim(_shape_payload(_resolve_content(props.get("outputsLink") or props.get("outputs"))))
             succeeded.append(record)
 
     return {
@@ -1121,8 +1266,8 @@ def compare_runs(flow_id: str, failed_run_id: str, baseline_run_id: str = "") ->
             # Resolve BOTH sides to real values before diffing. Comparing the
             # envelopes is useless: the URIs differ every run by design, and
             # contentSize collides on same-shape payloads (see _resolve_content).
-            f_out = _resolve_content(failed[name].get("outputsLink") or failed[name].get("outputs"))
-            b_out = _resolve_content(baseline[name].get("outputsLink") or baseline[name].get("outputs"))
+            f_out = _shape_payload(_resolve_content(failed[name].get("outputsLink") or failed[name].get("outputs")))
+            b_out = _shape_payload(_resolve_content(baseline[name].get("outputsLink") or baseline[name].get("outputs")))
             if f_out != b_out:
                 output_changes.append(
                     {"action": name, "baseline": _trim(b_out), "failed": _trim(f_out)}
