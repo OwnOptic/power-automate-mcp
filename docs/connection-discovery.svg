@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1044" height="470" viewBox="0 0 1044 470" role="img" aria-label="How power-automate-mcp finds a connection to bind: two routes are closed, the environment-wide PowerApps listing works, and a per-flow walk is the fallback.">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#F26F21"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker></defs>
+<rect width="1044" height="470" rx="14" fill="#FFFFFF"/>
+<rect x="322" y="22" width="400" height="56" rx="28" fill="#EEF2F6" stroke="#CBD5E1"/>
+<g transform="translate(342 38) scale(1.0)"><path d="M9 7C9.55228 7 10 7.44772 10 8C10 8.51284 9.61396 8.93551 9.11662 8.99327L9 9H7C5.34315 9 4 10.3431 4 12C4 13.5977 5.24892 14.9037 6.82373 14.9949L7 15H9C9.55228 15 10 15.4477 10 16C10 16.5128 9.61396 16.9355 9.11662 16.9933L9 17H7C4.23858 17 2 14.7614 2 12C2 9.31125 4.12231 7.11818 6.78311 7.00462L7 7H9ZM17 7C19.7614 7 22 9.23858 22 12C22 14.6888 19.8777 16.8818 17.2169 16.9954L17 17H15C14.4477 17 14 16.5523 14 16C14 15.4872 14.386 15.0645 14.8834 15.0067L15 15H17C18.6569 15 20 13.6569 20 12C20 10.4023 18.7511 9.09634 17.1763 9.00509L17 9H15C14.4477 9 14 8.55228 14 8C14 7.48716 14.386 7.06449 14.8834 7.00673L15 7H17ZM7 11H17C17.5523 11 18 11.4477 18 12C18 12.5128 17.614 12.9355 17.1166 12.9933L17 13H7C6.44772 13 6 12.5523 6 12C6 11.4872 6.38604 11.0645 6.88338 11.0067L7 11H17H7Z" fill="url(#i1_paint0_linear_75756_9244)"/>
+<defs>
+<linearGradient id="i1_paint0_linear_75756_9244" x1="-4.42857" y1="2.625" x2="3.50423" y2="26.481" gradientUnits="userSpaceOnUse">
+<stop stop-color="#36DFF1"/>
+<stop offset="1" stop-color="#2764E7"/>
+</linearGradient>
+</defs></g>
+<text x="376" y="56" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#2A3B4E" text-anchor="start">You need a connectionName to bind a connection</text>
+<path d="M522 78V142" stroke="#F26F21" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="24" y="150" width="300" height="86" rx="10" fill="#FDECEA" stroke="#E8A39B" stroke-width="1.5"/>
+<g transform="translate(38 162) scale(1.0)"><path d="M10.0297 3.65893C10.8859 2.1111 13.1111 2.11108 13.9673 3.65888L21.7131 17.6603C22.5427 19.16 21.4581 20.9995 19.7443 20.9995H4.25323C2.53945 20.9995 1.45483 19.16 2.28438 17.6604L10.0297 3.65893Z" fill="url(#i2_paint0_linear_378174_9756)"/>
+<path d="M12.9973 17.0009C12.9973 16.4494 12.5502 16.0022 11.9987 16.0022C11.4471 16.0022 11 16.4494 11 17.0009C11 17.5524 11.4471 17.9996 11.9987 17.9996C12.5502 17.9996 12.9973 17.5524 12.9973 17.0009ZM12.7381 9.14764C12.6882 8.7816 12.3742 8.4997 11.9945 8.5C11.5802 8.50033 11.2447 8.83639 11.2451 9.2506L11.2487 13.7522L11.2556 13.854C11.3055 14.22 11.6196 14.5019 11.9993 14.5016C12.4135 14.5013 12.749 14.1652 12.7487 13.751L12.7451 9.2494L12.7381 9.14764Z" fill="url(#i2_paint1_linear_378174_9756)"/>
+<defs>
+<linearGradient id="i2_paint0_linear_378174_9756" x1="5.12461" y1="-0.392807" x2="16.7187" y2="23.4768" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FFCD0F"/>
+<stop offset="1" stop-color="#FE8401"/>
+</linearGradient>
+<linearGradient id="i2_paint1_linear_378174_9756" x1="9.33556" y1="8.5" x2="13.7522" y2="18.4051" gradientUnits="userSpaceOnUse">
+<stop stop-color="#4A4A4A"/>
+<stop offset="1" stop-color="#212121"/>
+</linearGradient>
+</defs></g>
+<text x="70" y="180" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#B42318" text-anchor="start">Closed: 404</text>
+<text x="40" y="206" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET /environments/{env}/connections</text>
+<text x="40" y="227" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Under ProcessSimple and PowerApps</text>
+<rect x="24" y="250" width="300" height="104" rx="10" fill="#FDECEA" stroke="#E8A39B" stroke-width="1.5"/>
+<g transform="translate(38 262) scale(1.0)"><path d="M10.0297 3.65893C10.8859 2.1111 13.1111 2.11108 13.9673 3.65888L21.7131 17.6603C22.5427 19.16 21.4581 20.9995 19.7443 20.9995H4.25323C2.53945 20.9995 1.45483 19.16 2.28438 17.6604L10.0297 3.65893Z" fill="url(#i3_paint0_linear_378174_9756)"/>
+<path d="M12.9973 17.0009C12.9973 16.4494 12.5502 16.0022 11.9987 16.0022C11.4471 16.0022 11 16.4494 11 17.0009C11 17.5524 11.4471 17.9996 11.9987 17.9996C12.5502 17.9996 12.9973 17.5524 12.9973 17.0009ZM12.7381 9.14764C12.6882 8.7816 12.3742 8.4997 11.9945 8.5C11.5802 8.50033 11.2447 8.83639 11.2451 9.2506L11.2487 13.7522L11.2556 13.854C11.3055 14.22 11.6196 14.5019 11.9993 14.5016C12.4135 14.5013 12.749 14.1652 12.7487 13.751L12.7451 9.2494L12.7381 9.14764Z" fill="url(#i3_paint1_linear_378174_9756)"/>
+<defs>
+<linearGradient id="i3_paint0_linear_378174_9756" x1="5.12461" y1="-0.392807" x2="16.7187" y2="23.4768" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FFCD0F"/>
+<stop offset="1" stop-color="#FE8401"/>
+</linearGradient>
+<linearGradient id="i3_paint1_linear_378174_9756" x1="9.33556" y1="8.5" x2="13.7522" y2="18.4051" gradientUnits="userSpaceOnUse">
+<stop stop-color="#4A4A4A"/>
+<stop offset="1" stop-color="#212121"/>
+</linearGradient>
+</defs></g>
+<text x="70" y="280" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#B42318" text-anchor="start">Closed: 403 InvalidPath</text>
+<text x="40" y="306" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET api.powerapps.com/.../</text>
+<text x="40" y="323" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">environments/{env}/connections</text>
+<text x="40" y="344" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">With a Flow token</text>
+<rect x="372" y="150" width="300" height="204" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(386 162) scale(1.0)"><path d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2Z" fill="url(#i4_paint0_linear_378174_10112)"/>
+<path d="M15.2197 8.96967L10.75 13.4393L8.78033 11.4697C8.48744 11.1768 8.01256 11.1768 7.71967 11.4697C7.42678 11.7626 7.42678 12.2374 7.71967 12.5303L10.2197 15.0303C10.5126 15.3232 10.9874 15.3232 11.2803 15.0303L16.2803 10.0303C16.5732 9.73744 16.5732 9.26256 16.2803 8.96967C15.9874 8.67678 15.5126 8.67678 15.2197 8.96967Z" fill="url(#i4_paint1_linear_378174_10112)"/>
+<defs>
+<linearGradient id="i4_paint0_linear_378174_10112" x1="2.71429" y1="5.75" x2="16.5167" y2="20.0902" gradientUnits="userSpaceOnUse">
+<stop stop-color="#52D17C"/>
+<stop offset="1" stop-color="#22918B"/>
+</linearGradient>
+<linearGradient id="i4_paint1_linear_378174_10112" x1="9.1875" y1="9.41304" x2="10.681" y2="16.7129" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E3FFD9"/>
+</linearGradient>
+</defs></g>
+<text x="418" y="180" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1F7A4D" text-anchor="start">The route that works</text>
+<text x="388" y="206" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET api.powerapps.com/providers/</text>
+<text x="388" y="223" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">Microsoft.PowerApps/connections</text>
+<text x="388" y="240" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">?$filter=environment eq '&lt;env&gt;'</text>
+<text x="388" y="261" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Token audience: service.powerapps.com</text>
+<text x="388" y="279" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Returns 200 and the full list, including</text>
+<text x="388" y="297" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">connections no flow uses yet.</text>
+<text x="388" y="315" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Only Connected ones are kept.</text>
+<path d="M672 252H716" stroke="#94A3B8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrg)"/>
+<text x="694" y="242" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="middle">fails</text>
+<rect x="720" y="150" width="300" height="204" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+<g transform="translate(734 162) scale(1.0)"><path d="M6.5 7V17M6.5 13C6.5 10.5 8.5 9.5 11 9.5H13.5C15.7 9.5 17.5 8.5 17.5 7" stroke="url(#i5_cx_branch_line)" stroke-width="2" stroke-linecap="round" fill="none"/>
+<circle cx="6.5" cy="5.5" r="2.6" fill="url(#i5_cx_branch_a)"/><circle cx="6.5" cy="18.5" r="2.6" fill="url(#i5_cx_branch_b)"/><circle cx="17.5" cy="5.5" r="2.6" fill="url(#i5_cx_branch_c)"/>
+<defs><linearGradient id="i5_cx_branch_line" x1="6" y1="5" x2="18" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#E3E8EF"/><stop offset="1" stop-color="#AEB9C7"/></linearGradient><linearGradient id="i5_cx_branch_a" x1="4" y1="3" x2="9" y2="8" gradientUnits="userSpaceOnUse"><stop stop-color="#29C3FF"/><stop offset="1" stop-color="#2764E7"/></linearGradient><linearGradient id="i5_cx_branch_b" x1="4" y1="16" x2="9" y2="21" gradientUnits="userSpaceOnUse"><stop stop-color="#52D17C"/><stop offset="1" stop-color="#1FA254"/></linearGradient><linearGradient id="i5_cx_branch_c" x1="15" y1="3" x2="20" y2="8" gradientUnits="userSpaceOnUse"><stop stop-color="#FFC470"/><stop offset="1" stop-color="#F26F21"/></linearGradient></defs></g>
+<text x="766" y="180" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#2A3B4E" text-anchor="start">Fallback</text>
+<text x="736" y="206" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET /flows, then for each flow</text>
+<text x="736" y="223" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET /flows/{id}/connections</text>
+<text x="736" y="244" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Used only when that call fails.</text>
+<text x="736" y="262" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Unions what the flows reference,</text>
+<text x="736" y="280" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">so a connection that no flow</text>
+<text x="736" y="298" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">uses yet stays invisible.</text>
+<path d="M522 354V390" stroke="#F26F21" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="24" y="394" width="996" height="56" rx="10" fill="#2A3B4E"/>
+<rect x="24" y="394" width="6" height="56" rx="3" fill="#F26F21"/>
+<text x="48" y="418" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">bind_connection binds a connection created in the portal a minute ago.</text>
+<text x="48" y="438" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#D5DEE8" text-anchor="start">create_flow lists missing_connections, each with a link to the portal Connections page.</text>
+</svg>

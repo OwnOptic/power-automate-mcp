@@ -1172,21 +1172,7 @@ referenced by at least one flow.
 > Measured on a live tenant: 200 and the full list. `bind_connection` and `create_flow`
 > now use it, and fall back to the flow walk above only when that call fails.
 
-```mermaid
-flowchart TB
-    N["You need a connectionName to bind a connection"]
-    N --> A["GET /environments/{env}/connections<br/>Microsoft.ProcessSimple &rarr; 404 &nbsp;&nbsp;|&nbsp;&nbsp; Microsoft.PowerApps &rarr; 404"]
-    A --> C["GET api.powerapps.com/.../connections &mdash; the route that does exist<br/>403 InvalidPath: needs aud=service.powerapps.com,<br/>i.e. a second app registration and a second consent"]
-    C -.->|"so this server does this instead"| E["GET /flows &rarr; per flow GET /flows/{id}/connections &rarr; union the results"]
-    E --> H["Trade-off, documented not hidden:<br/>a connection that no flow uses yet is invisible"]
-
-    classDef bad fill:#fdecea,stroke:#d93025,color:#7f1d1d
-    classDef good fill:#F26F21,stroke:#c2551a,color:#ffffff
-    classDef plain fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
-    class A,C bad
-    class E good
-    class N,H plain
-```
+<img src="docs/connection-discovery.svg" alt="How the server finds a connection to bind: GET /environments/{env}/connections returns 404 and the per-environment powerapps route returns 403 with a Flow token; the environment-filtered GET api.powerapps.com/providers/Microsoft.PowerApps/connections works with a service.powerapps.com token and returns connections no flow uses yet; a per-flow walk is the fallback when that call fails." width="100%">
 
 No code generator produces that workaround. It only exists because someone hit the 404,
 then hit the 403, then found the flow-scoped route.
