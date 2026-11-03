@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Offline only: no az, no tenant, no secret. The tests fake Layer 2 and run
+    # Layers 3 and 4 as written. Live behaviour is checked by hand, see the README.
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.10", "3.13"]
+        include:
+          # Windows is where `az` is a .cmd shim and the README's paths are written.
+          - os: windows-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Both servers import and register their tools
+        # The same check the README's setup prompt runs, with no environment set.
+        run: |
+          python -c "import asyncio, server; n = len(asyncio.run(server.mcp.list_tools())); print('server.py', n); assert n == 10"
+          python -c "import asyncio, extras; n = len(asyncio.run(extras.mcp.list_tools())); print('extras.py', n); assert n == 9"
+
+      - name: Tests
+        run: python -m pytest -q
+
+  lockfile:
+    # requirements.txt must be what requirements.in compiles to, or the lockfile is
+    # pinning something nobody chose.
+    name: Lockfile matches requirements.in
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # Compile into a copy of the committed lockfile: uv keeps the existing pins as
+      # preferences, so a new upstream release does not fail this job. Only a change to
+      # requirements.in that nobody recompiled does.
+      - run: cp requirements.txt /tmp/requirements.txt
+      - run: uv pip compile requirements.in --universal --python-version 3.10 -o /tmp/requirements.txt --quiet
+      - run: diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/requirements.txt)

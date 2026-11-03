@@ -54,13 +54,25 @@ description: Create or modify a Power Automate flow headlessly with the power-au
 - `get_flow` -> edit the returned `definition` -> `update_flow_definition` with
   the COMPLETE definition. There is no patch semantics; partial definitions
   delete what they omit.
-- Connector flows: pass `connection_references` through unchanged from what
-  `get_flow` reports.
-- Portal-bound and solution flows cannot be updated through this API (their
-  connections are Dataverse connection references). Edit those in the portal.
+- Connector flows: leave `connection_references` out. The tool reads the flow's
+  live bindings and carries them over; `get_flow` shows `{}` for them, so there is
+  nothing to copy. Pass it only to change a binding.
+- Keep `previous_definition` from the result until the change is verified. There is
+  no undo endpoint; that is the undo.
+- Solution flows cannot be updated through this API (their connections are
+  Dataverse connection references). With `extras.py` connected, use
+  `get_solution_flow_clientdata` -> edit -> `update_solution_flow_definition`;
+  without it, edit them in the portal. `list_solutions` says whether a flow's
+  solution is managed - managed means read-only here, change the source instead.
+  Flows built in the portal under My flows are NOT solution flows and update fine.
 
 ## Verify (close the loop after every change)
 
 `run_flow` -> `list_runs` -> `explain_run` if it failed. Remember `run_flow`
 sends no body, so `@triggerBody()` is null; flows that depend on their payload
-need their real HTTP trigger URL called instead.
+need their real HTTP trigger URL called instead (`get_trigger_url` in `extras.py`),
+or, to retest on data that already failed, `resubmit_run`.
+
+If a flow will not start after a change, `set_flow_state` reports `ok: false`
+rather than pretending: an unbound connector is the usual cause, and
+`bind_connection` is the fix.

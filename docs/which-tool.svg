@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1044" height="700" viewBox="0 0 1044 700" role="img" aria-label="Which tool to use: see what exists with list_flows and get_flow; build with create_flow then bind_connection and run_flow; diagnose with list_runs, explain_run, then compare_runs or analyze_flow_health, and fix with update_flow_definition.">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#F26F21"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker><marker id="arrn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2A3B4E"/></marker></defs>
+<rect x="0" y="0" width="1044" height="700" rx="14" fill="#FFFFFF"/>
+<rect x="382.0" y="20" width="280" height="40" rx="20" fill="#2A3B4E"/>
+<text x="522" y="45" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">What are you trying to do?</text>
+<path d="M522 60V78H170V96" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<path d="M522 60V96" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<path d="M522 60V78H830V96" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="50" y="100" width="240" height="44" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(66 110) scale(1.0)" fill="none" stroke="#F26F21" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6"/><line x1="15" y1="15" x2="20" y2="20"/></g>
+<text x="98" y="127" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2A3B4E" text-anchor="start">See what exists</text>
+<rect x="402" y="100" width="240" height="44" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(418 110) scale(1.0)" fill="none" stroke="#F26F21" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="4" rx="1"/>
+  <rect x="16" y="10" width="6" height="4" rx="1"/>
+  <rect x="2" y="17" width="6" height="4" rx="1"/>
+  <path d="M8 5h4a2 2 0 0 1 2 2v6"/>
+  <path d="M8 19h4a2 2 0 0 0 2-2v-5"/>
+  <polyline points="15,7 14,5 16,5"/></g>
+<text x="450" y="127" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2A3B4E" text-anchor="start">Build something</text>
+<rect x="710" y="100" width="240" height="44" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(726 110) scale(1.0)" fill="none" stroke="#F26F21" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+  <line x1="12" y1="9" x2="12" y2="13"/>
+  <circle cx="12" cy="17" r="0.8" fill="#F26F21" stroke="none"/></g>
+<text x="758" y="127" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2A3B4E" text-anchor="start">Something is wrong</text>
+<rect x="70.0" y="168" width="200" height="34" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="170" y="190" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">list_flows</text>
+<rect x="70.0" y="214" width="200" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="170" y="236" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">get_flow</text>
+<text x="170" y="252" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">the full definition</text>
+<rect x="70.0" y="280" width="200" height="46" rx="8" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="170" y="302" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">list_environments</text>
+<text x="170" y="318" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">which PA_ENV_ID</text>
+<rect x="70.0" y="338" width="200" height="46" rx="8" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="170" y="360" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">list_solutions</text>
+<text x="170" y="376" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">solution, managed or not</text>
+<rect x="412.0" y="168" width="220" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="522" y="190" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">create_flow</text>
+<text x="522" y="206" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">validated before it is sent</text>
+<path d="M522 214V232" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="412.0" y="236" width="220" height="40" rx="20" fill="#2A3B4E"/>
+<text x="522" y="261" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Does it use a connector?</text>
+<path d="M522 276V300" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="530" y="293" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="start">yes</text>
+<rect x="412.0" y="304" width="220" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="522" y="326" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">bind_connection</text>
+<text x="522" y="342" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">binds every connector, starts it</text>
+<path d="M412 256H392V390H408" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrg)"/>
+<text x="386" y="330" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="end">no</text>
+<path d="M522 350V382" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="412.0" y="386" width="220" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="522" y="408" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">run_flow</text>
+<text x="522" y="424" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">then list_runs for the result</text>
+<rect x="720.0" y="168" width="220" height="40" rx="20" fill="#2A3B4E"/>
+<text x="830" y="193" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Is it still running?</text>
+<path d="M940 188H968V226" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="948" y="182" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="start">yes</text>
+<rect x="908.0" y="230" width="120" height="46" rx="8" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="968" y="252" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">cancel_run</text>
+<text x="968" y="268" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">stops what is left</text>
+<path d="M830 208V236" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="838" y="228" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="start">no</text>
+<rect x="710.0" y="240" width="180" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="800" y="262" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">list_runs</text>
+<text x="800" y="278" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">find the failed run_id</text>
+<path d="M800 286V308" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="680.0" y="312" width="240" height="46" rx="8" fill="#F26F21" stroke="#F26F21" stroke-width="1.5"/>
+<text x="800" y="334" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">explain_run</text>
+<text x="800" y="350" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#FFE7D6" text-anchor="middle">which action, what error, on what inputs</text>
+<path d="M800 358V378" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="700.0" y="382" width="200" height="40" rx="20" fill="#2A3B4E"/>
+<text x="800" y="407" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Is the cause clear?</text>
+<path d="M700 402H600V478" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="694" y="396" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="end">yes</text>
+<path d="M780 422V478" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="788" y="452" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="start">works other days</text>
+<path d="M900 402H940V478" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<text x="906" y="396" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5B6B7C" text-anchor="start">fails a lot</text>
+<rect x="500.0" y="482" width="200" height="46" rx="8" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="600" y="504" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">update_flow_definition</text>
+<text x="600" y="520" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">complete definition, old one kept</text>
+<rect x="710.0" y="482" width="140" height="46" rx="8" fill="#F26F21" stroke="#F26F21" stroke-width="1.5"/>
+<text x="780" y="504" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">compare_runs</text>
+<text x="780" y="520" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#FFE7D6" text-anchor="middle">diff a good run</text>
+<rect x="860.0" y="482" width="160" height="46" rx="8" fill="#F26F21" stroke="#F26F21" stroke-width="1.5"/>
+<text x="940" y="504" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">analyze_flow_health</text>
+<text x="940" y="520" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#FFE7D6" text-anchor="middle">flaky or broken?</text>
+<path d="M600 528V552" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<rect x="500.0" y="556" width="200" height="46" rx="8" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="600" y="578" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">resubmit_run</text>
+<text x="600" y="594" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="middle">replays the failing payload</text>
+<text x="712" y="584" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5B6B7C" text-anchor="start">or run_flow, for a run with no payload</text>
+<rect x="24" y="618" width="22" height="16" rx="4" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="54" y="631" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">server.py</text>
+<rect x="134" y="618" width="22" height="16" rx="4" fill="#F26F21" stroke="#F26F21" stroke-width="1.5"/>
+<text x="164" y="631" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">diagnose: the reason this repo exists</text>
+<rect x="410" y="618" width="22" height="16" rx="4" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="440" y="631" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">extras.py, the second server</text>
+<rect x="24" y="646" width="996" height="44" rx="10" fill="#2A3B4E"/>
+<rect x="24" y="646" width="6" height="44" rx="3" fill="#F26F21"/>
+<text x="48" y="673" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">Look connector operationIds up on Microsoft Learn, never guess them: a guessed one saves fine and fails at runtime.</text>
+</svg>

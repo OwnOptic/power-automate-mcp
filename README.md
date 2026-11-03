@@ -2,9 +2,13 @@
 
 # power-automate-mcp
 
+[![ci](https://github.com/OwnOptic/power-automate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/OwnOptic/power-automate-mcp/actions/workflows/ci.yml)
+
 **An MCP server that lets Claude create, run, and debug your Power Automate flows.**
 One file. Ten tools. Built as a teaching artifact for a community talk on why you
 should build your own MCP servers instead of waiting for someone to ship you one.
+Nine more tools for real work - environments, start and stop, cancel, resubmit,
+solutions - live in a second server, [`extras.py`](#running-extraspy).
 
 ## The short version
 
@@ -106,7 +110,7 @@ And when the error is clear but the *reason* is not:
 - [Tool reference](#tool-reference) - [companion server: Microsoft Learn MCP](#companion-server-microsoft-learn-mcp)
 - [Gotchas this server encodes](#gotchas-this-server-encodes)
 - [The demo flow](#the-demo-flow)
-- [Extending it](#extending-it)
+- [Extending it](#extending-it) - [tests](#tests)
 - [Skills: the layer above docstrings](#skills-the-layer-above-docstrings)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
@@ -127,29 +131,7 @@ Every useful MCP server is four layers. Only two of them are interesting.
 | **3. Shaping** | Turn API JSON into model-readable JSON | ~160 | **You. This is the work.** |
 | **4. Docstrings** | Teach the model what the API will not | ~200 | **You. This is the moat.** |
 
-```mermaid
-flowchart TB
-    subgraph gen["Generated in one prompt"]
-        direction TB
-        L1["Layer 1 - Auth<br/>one az CLI call, plus caching and errors<br/>~45 lines"]
-        L2["Layer 2 - Transport<br/>retry 401 / 429 / 5xx, follow nextLink<br/>~50 lines"]
-        L1 --> L2
-    end
-    subgraph own["Where your value lives"]
-        direction TB
-        L3["Layer 3 - Shaping<br/>~60 API fields down to the 4 worth reading<br/>~160 lines"]
-        L4["Layer 4 - Docstrings<br/>what the API will never tell you<br/>~200 lines"]
-        L3 --> L4
-    end
-    gen --> own
-
-    classDef cheap fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
-    classDef dear fill:#F26F21,stroke:#c2551a,color:#ffffff
-    class L1,L2 cheap
-    class L3,L4 dear
-    style gen fill:#ffffff,stroke:#cbd5e1,color:#64748b
-    style own fill:#fff7f0,stroke:#F26F21,color:#2A3B4E
-```
+<img src="docs/four-layers.svg" alt="The four layers of an MCP server. Generated in one prompt, about 95 lines: 1. Auth, one az CLI call plus caching and errors, about 45 lines; 2. Transport, retry 401, 429 and 5xx and follow nextLink, about 50 lines. Where your value lives, about 360 lines: 3. Shaping, about 60 API fields down to the 4 worth reading, about 160 lines; 4. Docstrings, what the API will never tell you, about 200 lines." width="100%">
 
 Wrapping an API is not the point, and it is precisely the part you can automate.
 The value is in deciding what to hand the model, and in writing down what you
@@ -238,28 +220,7 @@ for thread 19:...@thread.tacv2`.
    So the response pairs each failed action with the outputs of the actions that
    succeeded before it, in execution order.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor You
-    participant Claude
-    participant MCP as pa-demo-mcp
-    participant PA as Power Automate API
-    participant Blob as SAS-signed blob
-
-    You->>Claude: "It failed. What happened?"
-    Claude->>MCP: explain_run(flow_id, run_id)
-    MCP->>PA: GET /runs/{run_id}/actions
-    PA-->>MCP: Compute_batches - Failed, error: null
-    rect rgb(255, 235, 220)
-        Note over MCP,PA: A naive wrapper stops here<br/>and reports "Failed" with no reason
-    end
-    MCP->>Blob: GET outputsLink.uri
-    Blob-->>MCP: "div was invoked with a divisor of zero"
-    MCP->>MCP: pair failure with upstream outputs
-    MCP-->>Claude: failed action + resolved error + Load_settings outputs
-    Claude-->>You: Compute_batches divided by batch_size,<br/>which Load_settings set to 0
-```
+<img src="docs/explain-run.svg" alt="explain_run as a sequence, on the connector demo flow. You ask Claude what happened; Claude calls explain_run; the server reads the run's actions and gets Post_message: Failed with no error property, which is where a naive wrapper stops. The server then follows outputsLink.uri to the SAS content link and gets 404 NotFound: LocationLookupFailed, pairs it with the outputs of the actions before it, and hands Claude the error plus Load_target's outputs: the channel id Load_target emitted does not exist." width="100%">
 
 One tool call. The equivalent of about a dozen clicks through the run history view.
 That gap is the entire argument for building your own MCP server.
@@ -307,7 +268,7 @@ PHASE 1 - Code and dependencies
 6. Create a virtual environment inside it and use it for everything that follows.
    Tell me the exact interpreter path, I will need it in PHASE 4.
 7. `pip install -r requirements.txt`. That file is a lockfile, so expect around
-   thirty pinned packages, not three - `mcp`, `httpx` and `python-dotenv` are the
+   forty pinned packages, not three - `mcp`, `httpx` and `python-dotenv` are the
    direct ones, the rest are their transitives. Confirm the install succeeded.
 8. Sanity check the code imports and registers its tools without any environment
    variables set. It should report 10 tools:
@@ -468,6 +429,8 @@ pip install -r requirements.txt
 ```
 
 Three direct dependencies - `mcp`, `httpx`, `python-dotenv` - plus the Azure CLI.
+(`typing-extensions` is declared too, because `server.py` imports it, but it arrives
+with `mcp` anyway.)
 
 `requirements.txt` is a **lockfile**: every package pinned to an exact version,
 transitives included, so you get the same tree this was tested against rather than
@@ -481,10 +444,12 @@ uv pip compile requirements.in --universal --python-version 3.10 -o requirements
 `--universal` resolves for every OS at once and emits environment markers, so one
 lockfile covers Windows, macOS and Linux.
 
-> **`mcp` is capped below 2.0 on purpose.** The 2.x line removed
-> `mcp.server.fastmcp`, which `server.py` imports, so an unpinned `mcp>=1.0.0`
-> resolves to 2.0.0 and fails immediately with `ModuleNotFoundError`. Lifting the
-> cap means porting `server.py` to the 2.x API first.
+> **This runs on `mcp` 2.x.** If you are upgrading an older clone and see
+> `No module named 'mcp.server.fastmcp'`, your code and your installed SDK are a
+> major version apart: `git pull`, then `pip install -r requirements.txt` again. The
+> port itself was a one-line rename plus one behaviour change worth knowing about
+> before you port your own server; see
+> [gotcha 9](#9-mcp-2x-hides-the-text-of-every-exception-that-is-not-a-toolerror).
 
 ### 3. Configure
 
@@ -655,7 +620,9 @@ One request helper handling the four things that always come up:
 - **429** with `Retry-After` honoured
 - **503 / 504** with exponential backoff
 - **Terminal errors** re-raised carrying the API's own message, because the model
-  can frequently act on it directly
+  can frequently act on it directly. They are raised as `PowerAutomateError`, a
+  `ToolError`: on `mcp` 2.x that is the only kind of exception whose text reaches
+  the model at all ([gotcha 9](#9-mcp-2x-hides-the-text-of-every-exception-that-is-not-a-toolerror))
 
 Plus `_list`, which follows `nextLink` for collection endpoints up to a cap.
 
@@ -694,49 +661,46 @@ this repo is arguing for.
 
 ## Tool reference
 
-Ten tools in three groups, plus a companion server for the documentation lookups
-none of them can do.
+Ten tools in `server.py`, nine in [`extras.py`](#running-extraspy), plus a companion
+server for the documentation lookups none of them can do.
 
-| Group | Tools |
-| --- | --- |
-| **Author** | `list_flows`, `get_flow`, `create_flow`, `update_flow_definition`, `bind_connection` |
-| **Operate** | `run_flow`, `list_runs` |
-| **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` |
-| **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` |
+| Group | `server.py` (the teaching core) | `extras.py` (the second server) |
+| --- | --- | --- |
+| **Find** | `list_flows`, `get_flow` | `list_environments`, `list_solutions` |
+| **Author** | `create_flow`, `update_flow_definition`, `bind_connection` | `get_solution_flow_clientdata`, `update_solution_flow_definition` |
+| **Operate** | `run_flow`, `list_runs` | `set_flow_state`, `cancel_run`, `resubmit_run`, `get_trigger_url`, `delete_flow` |
+| **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` | |
+| **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` | |
 
 Which one to reach for:
 
-```mermaid
-flowchart TD
-    Q{"What are you trying to do?"}
+<img src="docs/which-tool.svg" alt="Which tool to reach for. See what exists: list_flows, get_flow, and from extras list_environments and list_solutions. Build something: create_flow; if it uses a connector, bind_connection, which binds and starts it; then run_flow. Something is wrong: if it is still running, cancel_run from extras; otherwise list_runs, then explain_run. If the cause is clear, update_flow_definition then resubmit_run or run_flow; if it works other days, compare_runs; if it fails a lot, analyze_flow_health." width="100%">
 
-    Q -->|"See what exists"| T1["list_flows<br/>get_flow"]
-    Q -->|"Build something"| T2["create_flow"]
-    Q -->|"Something is wrong"| D{"Do you have a failed run?"}
+The same choices as a table, with the tool most often confused with each one. Getting
+that pair wrong is the mistake a model actually makes, so each docstring spends its
+words on exactly that distinction.
 
-    T2 --> C{"Does it use a connector?"}
-    C -->|No| R["run_flow"]
-    C -->|Yes| B["bind_connection<br/>then it can start"]
-    B --> R
-
-    D -->|"Not yet"| L["list_runs<br/>find the failed run_id"]
-    L --> E
-    D -->|Yes| E["explain_run<br/>which action, what error,<br/>on what inputs"]
-
-    E --> S{"Is the cause clear?"}
-    S -->|Yes| F["update_flow_definition<br/>then run_flow"]
-    S -->|"No - it works other days"| CR["compare_runs<br/>diff against the last good run"]
-    S -->|"No - it fails a lot"| AH["analyze_flow_health<br/>flaky or broken? which action?"]
-    CR --> F
-    AH --> F
-
-    classDef hero fill:#F26F21,stroke:#c2551a,color:#ffffff
-    classDef tool fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
-    classDef ask fill:#2A3B4E,stroke:#1b2733,color:#ffffff
-    class E,CR,AH hero
-    class T1,T2,R,B,L,F tool
-    class Q,C,D,S ask
-```
+| Tool | Server | Changes state | Reach for it when | Not to be confused with |
+| --- | --- | --- | --- | --- |
+| `list_flows` | core | no | you need a `flow_id` | `list_environments`: flows are per environment |
+| `get_flow` | core | no | you are about to edit, or need a trigger name | `get_solution_flow_clientdata` for solution flows |
+| `create_flow` | core | yes | building a new flow from a definition | `update_flow_definition` for an existing one |
+| `update_flow_definition` | core | yes | changing a flow you can see in My flows | `update_solution_flow_definition` for solution flows |
+| `bind_connection` | core | yes | a connector flow will not start | `set_flow_state`: starting an unbound flow fails |
+| `run_flow` | core | yes | starting a fresh run now | `resubmit_run`, which replays a failed run's payload |
+| `list_runs` | core | no | finding a `run_id`, or checking a result | `analyze_flow_health` for patterns over many runs |
+| `explain_run` | core | no | one run failed and you want to know why | `compare_runs` when the error is clear and the cause is not |
+| `compare_runs` | core | no | "it worked yesterday" | `explain_run`, which looks at one run only |
+| `analyze_flow_health` | core | no | it fails sometimes, and you want to know how often and where | `compare_runs`, which explains one failure |
+| `list_environments` | extras | no | choosing `PA_ENV_ID`, or checking for Dataverse | `list_flows`, which lists inside one environment |
+| `set_flow_state` | extras | yes | turning a flow on or off on purpose | `cancel_run`: stopping a flow does not stop a run |
+| `cancel_run` | extras | yes | a run is looping or hung | `set_flow_state` to stop the next ones |
+| `resubmit_run` | extras | yes | retesting a fix on the exact failing data | `run_flow`, which starts with no payload |
+| `get_trigger_url` | extras | no | calling an HTTP-triggered flow from outside | `run_flow`, which never forwards a body |
+| `delete_flow` | extras | yes, permanently | cleaning up after a demo | `set_flow_state` "Stopped", which is reversible |
+| `list_solutions` | extras | no | is this flow in a solution, and is it managed? | `list_flows`, which does not show solutions |
+| `get_solution_flow_clientdata` | extras | no | reading a solution flow before editing it | `get_flow`, whose copy cannot be written back |
+| `update_solution_flow_definition` | extras | yes | editing a solution flow | `update_flow_definition`, which refuses these |
 
 ### `list_flows(state="", top=25)`
 
@@ -771,6 +735,15 @@ Create a flow from a workflow-definition dict.
 | `definition` | dict | required | Needs at least `triggers` and `actions`. |
 | `start` | bool | `True` | `False` creates it stopped, required for connector flows. |
 
+The definition is checked locally before it is sent, against the rules the API
+enforces with misleading messages (missing `$authentication`, a `runAfter` naming an
+action that does not exist, an approval typed as a plain connector call). An error
+there means nothing was created.
+
+Returns the flow summary, plus `warnings` for anything accepted but likely to
+disappoint, and `missing_connections` - `[{connector, create_url}]` - when a
+connector it uses has no connection in the environment yet.
+
 See [Gotchas](#gotchas-this-server-encodes) for the two rules that make the
 difference between a 201 and an afternoon of confusion.
 
@@ -790,7 +763,16 @@ Replace a flow's definition. Send the complete definition, not a fragment.
 }
 ```
 
-Does not work on portal-bound flows. See [Gotchas](#gotchas-this-server-encodes).
+Can be left out on a flow bound by `bind_connection`: the tool reads the live
+bindings itself (`get_flow` shows `{}` for them, so there is nothing to copy).
+
+Returns the flow summary plus `previous_definition`, the definition it just
+replaced. There is no undo endpoint, and a definition missing an action deletes that
+action, so the model that made the bad edit gets the old value back to restore it.
+
+Works on flows in My flows, including ones built in the maker portal. Does not work
+on **solution** flows: use `update_solution_flow_definition`. See
+[gotcha 4](#4-solution-flows-cannot-be-updated-through-this-api).
 
 ### `bind_connection(flow_id, connector, connection_name="", start=True)`
 
@@ -822,7 +804,7 @@ Returns one of five statuses:
 | `ambiguous` | Several connections match this connector. Candidates returned with display names and created times; re-call with `connection_name`. |
 | `not_found` | No `Connected` connection for this connector. `create_url` opens the portal Connections page. |
 | `incomplete` | The flow uses other connectors that could not be resolved. Nothing was bound; each one is listed with a `create_url`. |
-| (raises) | Portal-bound flow, or the flow does not exist. |
+| (raises) | Solution flow, or the flow does not exist. |
 
 It deliberately does **not** guess when several connections match, because binding
 the wrong account is a silent failure you would discover in production.
@@ -963,6 +945,85 @@ The `verdict` distinguishes the two cases that call for different responses: fai
 concentrated in one action mean a targeted fix, while failures spread across many
 actions usually mean the trigger data or a connection rather than the logic.
 
+### The `extras.py` tools
+
+A second server, so the core stays at ten. Same auth, same transport, same error
+handling: it imports all of it from `server.py`. See [Running `extras.py`](#running-extraspy).
+
+#### `list_environments()`
+
+Every environment the signed-in account can reach. Use it **before** setting
+`PA_ENV_ID`, rather than after a 404.
+
+Returns `[{environment_id, display_name, sku, region, is_default, has_dataverse, current}]`.
+`environment_id` is exactly what `PA_ENV_ID` takes, and `current` marks the one every
+other tool is pointed at now. `has_dataverse` says in advance whether the three
+solution tools can work there: several environments, often the Default one, have no
+Dataverse instance.
+
+#### `set_flow_state(flow_id, state)`
+
+Start or stop a flow. `state` is `Started` or `Stopped`.
+
+Returns `{flow_id, requested, state, ok}`. **Trust `ok`, not the 200.** The start and
+stop endpoints return a receipt, so the tool reads the flow back and reports whether
+the state actually moved.
+
+Stopping a flow does not stop a run already in progress (that is `cancel_run`).
+Starting an unbound connector flow fails with `CannotStartUnpublishedSolutionFlow`:
+that is `bind_connection`'s job, and it starts the flow too.
+
+#### `cancel_run(flow_id, run_id)`
+
+Cancel a run that is still `Running`: a loop that will not end, a wait that never
+returns. **Nothing is undone** - actions that already ran stay done. The run ends as
+`Cancelled`, and `explain_run` on it shows what had completed. If the flow will just
+fire again, stop it first with `set_flow_state`.
+
+#### `resubmit_run(flow_id, run_id)`
+
+Replay a run with its **original** trigger payload. This is how you prove a fix:
+`run_flow` starts a fresh run with no payload, so a green result there says nothing
+about the data that broke it.
+
+Returns `{status, source_run, trigger}`; poll `list_runs` for the new run. Same blast
+radius as the original run. The route is not the obvious one, see
+[gotcha 8](#8-resubmit-belongs-to-the-trigger-not-to-the-run).
+
+#### `get_trigger_url(flow_id)`
+
+The HTTP callback URL for each request-style trigger, the one the portal shows on the
+trigger card. Blocked by the API on Button triggers (`kind: "Button"`), so useful on
+real HTTP-triggered flows and useless on the demo one. Treat the result as a secret:
+the URL carries its own signature and is enough to run the flow.
+
+#### `delete_flow(flow_id, confirm=False)`
+
+Permanently delete a flow and its run history. Refuses unless `confirm=True`. If the
+runs are evidence for a failure you are still diagnosing, look at them first.
+
+#### `list_solutions(top=50, include_hidden=False)`
+
+The environment's solutions, read from Dataverse (there is no Power Automate route for
+them: it 404s for every environment). Use it to answer "is this flow in a solution,
+and is that solution managed?" before editing: a managed solution's flows are
+read-only by design.
+
+Returns `[{solution_id, unique_name, display_name, version, publisher, is_managed, installed_on}]`.
+
+#### `get_solution_flow_clientdata(flow_id)`
+
+A solution flow's real, stored definition, from the Dataverse `workflow` row. `get_flow`
+cannot give you an editable copy of these, because the Power Automate API rewrites the
+connection hosts on the way out. Base every solution-flow edit on this one.
+
+#### `update_solution_flow_definition(flow_id, definition, connection_references=None)`
+
+Replace a solution flow's definition by read-modify-write on that Dataverse row. A write
+there deactivates the flow; the tool reactivates it if it was on, and says so under
+`reactivated`. Leave `connection_references` out unless you mean to change them.
+Returns `previous_definition`, as `update_flow_definition` does.
+
 ### Companion server: Microsoft Learn MCP
 
 The ten tools build, run and diagnose flows. None of them can tell you what goes
@@ -1094,42 +1155,16 @@ already exists in the environment:
 your own MCP server should absorb. An API that requires a three-step dance to reach a
 working state is an API whose tool layer should expose the destination, not the dance.
 
-```mermaid
-flowchart LR
-    subgraph naive["What create_flow alone gives you"]
-        direction TB
-        A["create_flow<br/>(definition using a connector)"] --> B["201 Created"]
-        B --> C["connectionReferences: { }<br/>/connections is empty"]
-        C --> D["Start &rarr; CannotStartUnpublishedSolutionFlow<br/>passing connectionReferences on<br/>create does not help either"]
-    end
-
-    subgraph fix["bind_connection does all three"]
-        direction TB
-        E["1. resolve the connectionName"] --> F["2. PATCH definition<br/>+ connectionReferences"]
-        F --> G["3. POST /start"]
-    end
-
-    naive -.->|"blocked"| fix
-    fix --> H["Running"]
-
-    classDef bad fill:#fdecea,stroke:#d93025,color:#7f1d1d
-    classDef good fill:#F26F21,stroke:#c2551a,color:#ffffff
-    classDef plain fill:#eef2f6,stroke:#94a3b8,color:#2A3B4E
-    class C,D bad
-    class H good
-    class A,B,E,F,G plain
-    style naive fill:#fff5f5,stroke:#d93025,color:#7f1d1d
-    style fix fill:#fff7f0,stroke:#F26F21,color:#2A3B4E
-```
+<img src="docs/create-vs-bind.svg" alt="What create_flow alone gives you: create_flow with a connector definition, 201 Created, connectionReferences empty and /connections empty, then start refused with CannotStartUnpublishedSolutionFlow; passing connectionReferences on create does not help. bind_connection does all three in one call: resolve the connectionName from the environment's list, Connected only; PATCH definition plus connectionReferences for every connector in one save; POST /start and read the bindings back; the flow is Started with at least one connection." width="100%">
 
 Nothing in any of these APIs can create and authenticate a brand new connection.
 Make that one in the portal first.
 
-### 4. Portal-bound flows cannot be updated through this API
+### 4. Solution flows cannot be updated through this API
 
-Once the maker portal binds a flow's connections they become Dataverse connection
-references, and there is a read/write shape mismatch that cannot be reconciled from
-here:
+A flow inside a solution binds its connections through Dataverse connection
+references, and there is a read/write shape mismatch that cannot be reconciled
+through the Power Automate API:
 
 - `get_flow` reports the host as `connectionName`
 - the PATCH wants `connectionReferenceName`
@@ -1137,45 +1172,60 @@ here:
   found", because minting the Dataverse reference is not possible through this
   endpoint
 
-Edit those flows in the portal. Headless creation plus binding works only for flows
-whose connections you also created here.
+So go round it: the stored definition lives in the `clientdata` column of the
+Dataverse `workflow` row, and `extras.py` reads and writes it there
+(`get_solution_flow_clientdata`, `update_solution_flow_definition`).
 
-### 5. There is no environment-wide connections endpoint you can reach
+**This used to say "portal-bound flows", and that was too broad.** A flow built in the
+maker portal under My flows, not in a solution, keeps `Embedded` references, and a PATCH
+carrying them as stored succeeds (measured 28 July 2026). The line that matters is
+solution or not, not portal or not. `list_solutions` tells you which side of it you
+are on.
+
+### 5. The obvious connections endpoint does not exist
 
 This one is worth reading even if you never touch Power Automate, because it is the
 purest example of why a hand-built tool layer beats a generated one.
 
 To bind a connection you need its `connectionName`. The obvious way to get it is to
-list the environment's connections. You cannot:
+list the environment's connections, and the obvious routes are all closed:
 
 - `/environments/{env}/connections` returns **404** under the `Microsoft.ProcessSimple`
   provider **and** under `Microsoft.PowerApps`
-- the route that does work lives on a different host entirely,
-  `https://api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections`
-- calling it with a `service.flow.microsoft.com` token returns **403 InvalidPath**,
-  because it needs an `aud=service.powerapps.com` token, meaning a second app
-  registration and a second admin consent
+- the per-environment route on the PowerApps host,
+  `api.powerapps.com/providers/Microsoft.PowerApps/environments/{env}/connections`,
+  returns **403 InvalidPath** with a Flow token
 
-The per-flow route `/environments/{env}/flows/{flow_id}/connections` *does* work. So
-this server discovers connections by walking the environment's flows and unioning what
-they reference.
+**The route that works** is the top-level collection on that same host, filtered by
+environment, with a token for the PowerApps audience, which `az` mints like any other.
+A second token, not a second app registration:
 
-The trade-off is real and is documented rather than hidden: **a connection that no flow
-uses yet is invisible.** For the question that actually matters, "is connector X already
-connected here and what is its `connectionName`", any bindable connection is normally
-referenced by at least one flow.
+```
+GET https://api.powerapps.com/providers/Microsoft.PowerApps/connections
+    ?api-version=2016-11-01&$filter=environment eq '<env>'
+Token audience: https://service.powerapps.com/
+```
 
-> **Update, 16 September 2026: the trade-off is retired.** The second-registration claim
-> above was wrong. The top-level collection filtered by environment works with an
-> `aud=service.powerapps.com` token, which `az` mints like any other:
-> `GET https://api.powerapps.com/providers/Microsoft.PowerApps/connections?api-version=2016-11-01&$filter=environment eq '<env>'`.
-> Measured on a live tenant: 200 and the full list. `bind_connection` and `create_flow`
-> now use it, and fall back to the flow walk above only when that call fails.
+Measured on a live tenant: 200 and the full list, including connections no flow uses
+yet - which is what makes "create the connection in the portal, then bind it" work in
+one go. `bind_connection` and `create_flow` use it, and keep only `Connected`
+connections, because a broken one binds fine and then fails every run.
+
+If that call fails, the server falls back to the per-flow route,
+`/environments/{env}/flows/{flow_id}/connections`, which does work with a Flow token,
+and unions what the environment's flows reference. The fallback cannot see a connection
+that no flow uses yet, so on that path a brand new connection comes back `not_found`.
+
+How this was found is the actual lesson. The first version of this server shipped the
+flow walk as the *only* route, with a note saying the PowerApps listing needed a second
+app registration. That note was wrong, and it took reading someone else's code to find
+out. Nothing in any of these APIs tells you which route is the real one.
 
 <img src="docs/connection-discovery.svg" alt="How the server finds a connection to bind: GET /environments/{env}/connections returns 404 and the per-environment powerapps route returns 403 with a Flow token; the environment-filtered GET api.powerapps.com/providers/Microsoft.PowerApps/connections works with a service.powerapps.com token and returns connections no flow uses yet; a per-flow walk is the fallback when that call fails." width="100%">
 
-No code generator produces that workaround. It only exists because someone hit the 404,
-then hit the 403, then found the flow-scoped route.
+No code generator produces that route. It only exists because someone hit the 404,
+then hit the 403, then shipped the flow-walk workaround, then found out the workaround
+was unnecessary.
 
 ### 6. Never inline a secret in a definition
 
@@ -1201,6 +1251,61 @@ card and wait for a response" action is `PostCardAndWaitForResponse`, its
 parameters use a doubled prefix (`body/body/messageBody`), and the `submitActionId`
 it returns is the **title** of the button the user clicked rather than the button's
 `data` payload.
+
+### 8. Resubmit belongs to the trigger, not to the run
+
+Replaying a failed run is the honest way to test a fix, and the route reads like it
+should be:
+
+```
+POST /environments/{env}/flows/{flow}/runs/{run}/resubmit        404
+```
+
+It sits right next to `/runs/{run}/cancel`, which does exist. It returns 404 all the
+same. Resubmit hangs off the **trigger's history**:
+
+```
+POST /environments/{env}/flows/{flow}/triggers/{trigger}/histories/{run}/resubmit
+```
+
+The history name is the run id - the
+[Logic Apps reference](https://learn.microsoft.com/rest/api/logic/workflow-trigger-histories/resubmit)
+says it "corresponds to the run name for triggers that resulted in a run" - and the
+trigger name is on the run record, so `resubmit_run` reads the run first and needs
+only the `run_id` from you.
+
+This one is in here because this repository got it wrong twice: `extras.py` shipped
+calling the 404 route, and so did the example in [Extending it](#extending-it), which
+taught the wrong route to everyone who copied it. A docstring is only an asset while
+it is true.
+
+### 9. mcp 2.x hides the text of every exception that is not a ToolError
+
+Relevant to anyone porting an MCP server from `mcp` 1.x to 2.x, not just this one.
+
+The port is mostly a rename: `FastMCP` became `MCPServer`, and the decorators,
+annotations and output schemas carry over. The change that matters is silent. In 1.x,
+any exception a tool raised reached the model as its error text. In 2.x the SDK splits
+them in two:
+
+| raised from a tool | what the model sees |
+| --- | --- |
+| `ToolError` (or a subclass) | `Error executing tool get_flow: Power Automate API 404: ...` |
+| anything else | `Error executing tool get_flow` - the message stays in the server log |
+
+This server raises on purpose, with the API's own message, because the model can
+usually act on it: a 400 naming the bad property, "run `az login`", the local
+validator's rule names. Ported naively, every one of those becomes a bare "Error
+executing tool", while the import check, the tool count and every happy-path demo
+still pass.
+
+The fix is one class. Every deliberate error here is a `PowerAutomateError`, which
+subclasses `ToolError` (so 2.x forwards its text) and `RuntimeError` (so every
+existing `except RuntimeError` keeps working). Dataverse calls go through a helper that
+raises it with Dataverse's own message instead of calling `raise_for_status()`, whose
+`HTTPStatusError` would count as a crash. Three tests pin it down: one that a
+`ToolError`'s text arrives, a control test showing a plain exception's text does not,
+and one that fails the build if a bare `raise RuntimeError(` comes back.
 
 ---
 
@@ -1263,26 +1368,63 @@ Adding a tool takes three steps.
    which other tool, and every constraint you discovered while building it.
 
 ```python
-@mcp.tool()
-def resubmit_run(run_id: str, flow_id: str) -> dict:
+@mcp.tool(annotations=ToolAnnotations(title="Resubmit Run", readOnlyHint=False,
+                                      destructiveHint=True, openWorldHint=True))
+def resubmit_run(flow_id: str, run_id: str) -> dict:
     """Re-run a failed run with its ORIGINAL trigger payload.
 
     Different from run_flow: this replays the exact data that caused the failure,
     which is what you want after fixing a definition. run_flow starts a fresh run
     with no payload and will not reproduce the case you just fixed.
 
-    Returns a new run_id. Poll list_runs, then explain_run if it fails again.
+    The route hangs off the trigger's history, not the run: /runs/{run}/resubmit
+    is a 404. The history name is the run id; the trigger name is on the run.
     """
-    return _call("POST", f"/environments/{ENV_ID}/flows/{flow_id}/runs/{run_id}/resubmit")
+    run = _call("GET", f"/environments/{env_id()}/flows/{flow_id}/runs/{run_id}")
+    trigger = run["properties"]["trigger"]["name"]
+    _call("POST", f"/environments/{env_id()}/flows/{flow_id}/triggers/{trigger}/histories/{run_id}/resubmit")
+    return {"status": "resubmitted", "source_run": run_id,
+            "hint": "Asynchronous. Poll list_runs for the new run, then explain_run it."}
 ```
 
 Note what that docstring spends its words on: not what the tool does, but **when to
-use it instead of the tool next to it.** Disambiguating two similar tools is the
-highest-value sentence you can write, because choosing wrong between them is the
-mistake a model actually makes.
+use it instead of the tool next to it**, and the one fact about the API you would
+otherwise learn from a 404. Disambiguating two similar tools is the highest-value
+sentence you can write, because choosing wrong between them is the mistake a model
+actually makes.
 
-Natural next additions, roughly in order of usefulness: `resubmit_run`,
-`list_environments`, `get_trigger_url`, `delete_flow`, `list_solutions`.
+The previous version of this example called `/runs/{run}/resubmit`. It read
+perfectly, and it was wrong; see [gotcha 8](#8-resubmit-belongs-to-the-trigger-not-to-the-run).
+Run every route once against a real tenant before you write it into a docstring.
+
+Natural next additions, roughly in order of usefulness: approvals (list and respond),
+environment variables (read and set, so definitions stop carrying values), connection
+references for solution flows, and desktop flow runs.
+
+### Tests
+
+```bash
+pip install pytest
+python -m pytest
+```
+
+The suite runs **offline**: no `az`, no tenant, no network. It replaces Layer 2's `_call`
+with a fake that routes `(method, path)` to canned API responses and records every call,
+so Layers 3 and 4 run exactly as written. Tests assert on the routes a tool calls, not
+just on what it returns, because a wrong route is a bug no return value shows (gotcha 8
+would have been caught by one).
+
+- `tests/test_shaping.py` - the pure functions, one test per documented gotcha: the
+  validator's rules, the designer schema fix, seven-digit timestamps, the SAS second hop
+  and the `innerError` preference, payload shaping
+- `tests/test_tools.py` - every tool against the fake API, both servers
+- `tests/test_mcp_surface.py` - what a client sees, through the SDK's own in-memory
+  client: tool counts, annotations, output schemas, and that error text reaches the model
+
+CI runs it on Python 3.10 and 3.13 on Linux and 3.12 on Windows, along with the README's
+import check and a check that `requirements.txt` is what `requirements.in` compiles to.
+What it cannot prove is that the API still answers the way the fakes say. That is what
+[Verified, and not](#verified-and-not) is for.
 
 ---
 
@@ -1328,9 +1470,14 @@ up too early, fix the skill.
 | `explain_run` returns `[error blob unavailable]` | SAS URL expired | Re-run the flow and debug the fresh failure |
 | `bind_connection` returns `not_found` | No `Connected` connection for that connector (missing, or in an error state) | Open `create_url`, create or repair it in the portal, then call again |
 | `bind_connection` returns `ambiguous` | Several connections for that connector | Re-call with `connection_name` set to one of the returned candidates |
-| `bind_connection` succeeds but `connections_on_flow` is 0 | Flow is solution or portal-bound | Edit that flow in the portal, see [gotcha 4](#4-portal-bound-flows-cannot-be-updated-through-this-api) |
+| `bind_connection` succeeds but `connections_on_flow` is 0 | Flow is in a solution | Bind it in the portal; see [gotcha 4](#4-solution-flows-cannot-be-updated-through-this-api) |
 | `analyze_flow_health` returns `duration_seconds: null` | No successful runs to measure | Expected on a flow that has never succeeded |
-| `@triggerBody()` is null when using `run_flow` | Management endpoint does not forward bodies | Call the flow's real HTTP trigger URL instead |
+| `@triggerBody()` is null when using `run_flow` | Management endpoint does not forward bodies | Call the flow's real HTTP trigger URL instead (`get_trigger_url`) |
+| `No module named 'mcp.server.fastmcp'` | Code and installed SDK are a major version apart | `git pull`, then `pip install -r requirements.txt` |
+| A tool fails with only `Error executing tool <name>` | Something raised a plain exception, which mcp 2.x does not show the model | The full error is in your MCP client's server log; see [gotcha 9](#9-mcp-2x-hides-the-text-of-every-exception-that-is-not-a-toolerror) |
+| `resubmit_run` returns 404 | An older `extras.py` calling `/runs/{run}/resubmit` | Update; see [gotcha 8](#8-resubmit-belongs-to-the-trigger-not-to-the-run) |
+| `set_flow_state` returns `ok: false` | The start or stop was accepted and did not take | Usually an unbound connector flow: run `bind_connection` |
+| Solution tools say "no Dataverse instance" | The environment has none | `list_environments` shows which ones have `has_dataverse: true` |
 
 ---
 
@@ -1346,10 +1493,16 @@ up too early, fix the skill.
 - **`.env` holds no secrets** by design. A client ID and tenant ID are public
   identifiers. It is gitignored anyway, because environment IDs leak tenant
   structure.
-- **Write tools are live.** `create_flow`, `update_flow_definition`, and `run_flow`
-  change real state with no confirmation step. If you want this in a production
-  tenant, split the read tools and write tools into two servers and connect the
-  write server only when you mean it.
+- **Write tools are live.** `create_flow`, `update_flow_definition`, `bind_connection`
+  and `run_flow` change real state with no confirmation step, and so do
+  `set_flow_state`, `cancel_run`, `resubmit_run` and `update_solution_flow_definition`
+  in `extras.py`. Only `delete_flow` asks twice. Every tool carries MCP annotations
+  (`readOnlyHint`, `destructiveHint`), so a client that honours them can ask before
+  the write ones. If you want this in a production tenant, split the read tools and
+  write tools into two servers and connect the write server only when you mean it.
+- **Check the tenant before every session on a shared machine.** `az` holds many
+  accounts and lends whichever is active. Set `PA_TENANT_ID` so the wrong one fails
+  loudly instead of writing quietly.
 - **Never inline secrets in flow definitions.** See
   [gotcha 6](#6-never-inline-a-secret-in-a-definition).
 
@@ -1358,38 +1511,41 @@ up too early, fix the skill.
 ## What is deliberately missing
 
 This is a teaching artifact, not a complete client. Left out of `server.py` on purpose:
-environment discovery, desktop flows, approvals, and cancel. Solution-bound flow editing,
-resubmit, trigger URLs and delete moved into `extras.py`, which runs as a second server
-so the teaching core stays at ten tools.
+everything that is not on the author, bind, run, diagnose loop. Environment discovery,
+start and stop, cancel, resubmit, trigger URLs, delete and the solution tools live in
+`extras.py`, which runs as a second server so the teaching core stays at ten tools.
+Left out of both: desktop flows, approvals, and environment variables.
 
 Ten tools is about the number that fits in a talk while still covering a real loop:
 author, bind, run, diagnose. The production server this was extracted from runs
-twenty-four Power Automate tools alongside Microsoft Graph and Teams, and it is the
+twenty-seven Power Automate tools alongside Microsoft Graph and Teams, and it is the
 same four layers throughout.
 
 ### Running `extras.py`
 
 [`extras.py`](extras.py) is a **second server**, registered separately, so `server.py`
-stays at ten tools. It adds `delete_flow` (which requires `confirm=True`),
-`resubmit_run`, `get_trigger_url`, `get_solution_flow_clientdata` and
-`update_solution_flow_definition`.
+stays at ten tools. It adds nine: `list_environments`, `set_flow_state`, `cancel_run`,
+`resubmit_run`, `get_trigger_url`, `delete_flow` (which requires `confirm=True`),
+`list_solutions`, `get_solution_flow_clientdata` and `update_solution_flow_definition`.
+They are described in the [tool reference](#the-extraspy-tools).
 
 ```json
 {
   "mcpServers": {
-    "pa-demo":        { "command": "python", "args": ["C:/path/to/pa-demo-mcp/server.py"] },
-    "pa-demo-extras": { "command": "python", "args": ["C:/path/to/pa-demo-mcp/extras.py"] }
+    "power-automate":        { "command": "python", "args": ["C:/path/to/power-automate-mcp/server.py"] },
+    "power-automate-extras": { "command": "python", "args": ["C:/path/to/power-automate-mcp/extras.py"] }
   }
 }
 ```
 
-The interesting line is not in that config, it is at the top of `extras.py`:
+Use the same interpreter for both - the venv one, if you made one. The interesting line
+is not in that config, it is at the top of `extras.py`:
 
 ```python
-from server import _az, _call, _flow_summary, _tenant_args, _trim, env_id
+from server import PowerAutomateError, _az, _call, _flow_summary, _list, _tenant_args, _trim, env_id
 ```
 
-Five more tools, zero new auth code and zero new transport code. Layers 1 and 2 are
+Nine more tools, zero new auth code and zero new transport code. Layers 1 and 2 are
 commodity - write them once and reuse them forever. Layer 4 is the part that had to
 be learned. That is the argument of this whole repository, expressed as an import.
 
@@ -1412,7 +1568,7 @@ better than the one this repo had, so `_validate_definition` is a port of theirs
 Where this one wins, measured on the same failed run in the same environment on
 2026-08-17 (a Teams post to a channel that does not exist):
 
-| | flowagent (56 tools) | pa-demo-mcp (10) |
+| | flowagent (56 tools) | power-automate-mcp (10) |
 |---|---|---|
 | which action failed | yes | yes |
 | error text | `"message": ""` | `404 NotFound: LocationLookupFailed-Location lookup failed for thread 19:...` |
@@ -1435,10 +1591,21 @@ to answer. Which is the entire argument of this repository.
 
 ### Verified, and not
 
-Everything in the table above was run live, not read from source. Ten of ten tools have
-been exercised against a real tenant. Not verified: `update_solution_flow_definition`
-against an actual managed-solution flow, and anything in an environment without a
-Dataverse instance.
+Everything in the table above was run live, not read from source, on 17 August 2026.
+The ten `server.py` tools were all exercised against a real tenant then, on `mcp` 1.x.
+
+Since then, and not yet run live in this repository:
+
+- the move to `mcp` 2.x. The offline suite covers the whole MCP surface through the
+  SDK's own client, but no live tenant has seen this version
+- `list_environments`, `set_flow_state`, `cancel_run` and `list_solutions`, which are
+  ported from the production server rather than written fresh
+- the corrected `resubmit_run`, which follows Microsoft's documented route
+- `update_solution_flow_definition` against an actual managed-solution flow, and
+  anything in an environment without a Dataverse instance
+
+Every one of those is covered by the offline tests, which prove the code calls the
+routes it means to. Only a tenant proves the routes still answer.
 
 ---
 

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1044" height="482" viewBox="0 0 1044 482" role="img" aria-label="create_flow alone leaves a connector flow unbound and unstartable; bind_connection resolves the connection, patches the definition with it and starts the flow.">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#F26F21"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker><marker id="arrn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2A3B4E"/></marker></defs>
+<rect x="0" y="0" width="1044" height="482" rx="14" fill="#FFFFFF"/>
+<rect x="24" y="22" width="480" height="356" rx="10" fill="#FFF9F8" stroke="#E8A39B" stroke-width="1.5"/>
+<g transform="translate(44 40) scale(1.0)" fill="none" stroke="#B42318" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+  <line x1="12" y1="9" x2="12" y2="13"/>
+  <circle cx="12" cy="17" r="0.8" fill="#B42318" stroke="none"/></g>
+<text x="78" y="58" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#B42318" text-anchor="start">What create_flow alone gives you</text>
+<rect x="48" y="80" width="432" height="54" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="64" y="104" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="start">create_flow</text>
+<text x="64" y="123" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">a definition that uses a connector</text>
+<path d="M264 134V150" fill="none" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrg)"/>
+<rect x="48" y="150" width="432" height="54" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="64" y="174" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="start">201 Created</text>
+<text x="64" y="193" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">looks like success</text>
+<path d="M264 204V220" fill="none" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrg)"/>
+<rect x="48" y="220" width="432" height="54" rx="10" fill="#FDECEA" stroke="#E8A39B" stroke-width="1.5"/>
+<text x="64" y="244" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#B42318" text-anchor="start">connectionReferences: { }</text>
+<text x="64" y="263" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">/connections on the flow is empty</text>
+<path d="M264 274V290" fill="none" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrg)"/>
+<rect x="48" y="290" width="432" height="54" rx="10" fill="#FDECEA" stroke="#E8A39B" stroke-width="1.5"/>
+<text x="64" y="314" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="13" font-weight="700" fill="#B42318" text-anchor="start">CannotStartUnpublishedSolutionFlow</text>
+<text x="64" y="333" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">start is refused</text>
+<text x="48" y="362" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#B42318" text-anchor="start">Passing connectionReferences on create does not help either.</text>
+<path d="M506 192H536" fill="none" stroke="#F26F21" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="540" y="22" width="480" height="356" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(560 40) scale(1.0)" fill="none" stroke="#F26F21" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" fill="none" stroke="#F26F21" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="594" y="58" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#2A3B4E" text-anchor="start">bind_connection does all three, in one call</text>
+<rect x="564" y="80" width="432" height="54" rx="10" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5"/>
+<circle cx="590" cy="107" r="13" fill="#F26F21"/>
+<text x="590" y="112" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="614" y="104" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="start">Resolve the connectionName</text>
+<text x="614" y="123" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">from the environment's list, Connected only</text>
+<path d="M780 134V150" fill="none" stroke="#F26F21" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="564" y="150" width="432" height="54" rx="10" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5"/>
+<circle cx="590" cy="177" r="13" fill="#F26F21"/>
+<text x="590" y="182" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="614" y="174" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="start">PATCH definition + connectionReferences</text>
+<text x="614" y="193" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">every connector in the flow, in one save</text>
+<path d="M780 204V220" fill="none" stroke="#F26F21" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="564" y="220" width="432" height="54" rx="10" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5"/>
+<circle cx="590" cy="247" r="13" fill="#F26F21"/>
+<text x="590" y="252" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="614" y="244" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="start">POST /start</text>
+<text x="614" y="263" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">then read the bindings back</text>
+<path d="M780 274V290" fill="none" stroke="#F26F21" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="564" y="290" width="432" height="54" rx="10" fill="#E8F5EE" stroke="#7CC4A0" stroke-width="1.5"/>
+<g transform="translate(580 305) scale(1.0)" fill="none" stroke="#1F7A4D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" fill="none" stroke="#1F7A4D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="614" y="323" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1F7A4D" text-anchor="start">Started, connections_on_flow &gt;= 1</text>
+<text x="564" y="362" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#5B6B7C" text-anchor="start">Ambiguous or missing connections stop it before anything is saved.</text>
+<rect x="24" y="404" width="996" height="56" rx="10" fill="#2A3B4E"/>
+<rect x="24" y="404" width="6" height="56" rx="3" fill="#F26F21"/>
+<text x="48" y="428" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">An API that needs a three-step dance should expose the destination, not the dance.</text>
+<text x="48" y="448" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#D5DEE8" text-anchor="start">The connection itself must already exist: creating one is an OAuth sign-in, a portal action.</text>
+</svg>

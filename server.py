@@ -1,8 +1,8 @@
-"""pa-demo-mcp - a minimal Power Automate MCP server, built for a community call.
+"""power-automate-mcp - a minimal Power Automate MCP server, built for a community call.
 
-Ten tools. One file. No framework beyond the official MCP SDK.
+Ten tools. One file. No framework beyond the official MCP SDK (2.x).
 
-The point of this server is NOT to be complete - the real one I run daily has 24
+The point of this server is NOT to be complete - the real one I run daily has 27
 Power Automate tools, and Microsoft's own plugin ships 56. The point is to show
 the four layers every useful MCP has, and that the value is in layers 3 and 4,
 not layer 1:
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -41,15 +42,42 @@ try:  # pragma: no cover - trivial import shim
 except ImportError:  # pragma: no cover
     from typing import TypedDict  # type: ignore[assignment]
 
+# httpx is a direct dependency, not a gift from mcp. The 2.x SDK moved to httpx2 and
+# stopped installing httpx at all, so an undeclared `import httpx` that worked on 1.x
+# dies on a clean 2.x install with a ModuleNotFoundError that never mentions mcp.
 import httpx
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+
+__version__ = "2.0.0"
+
+
+class PowerAutomateError(ToolError, RuntimeError):
+    """Every error this server raises on purpose. The one class the 2.x port needed.
+
+    mcp 2.x splits tool exceptions in two. A ToolError is "raised deliberately" and its
+    text reaches the model. ANY OTHER exception is treated as a crash: the model gets
+    "Error executing tool create_flow" and nothing else, and the message stays in the
+    server log. Under 1.x every exception's text reached the model.
+
+    That would have quietly blinded this server. It raises with the API's own message
+    on purpose - "Power Automate API 400: ...", "Run `az login` first", the local
+    validator's rule names - because the model can usually act on that text directly.
+    Ported naively, every one of those becomes a bare "Error executing tool", and the
+    import check, the tool count and every happy-path demo still pass.
+
+    Subclassing RuntimeError too keeps every `except RuntimeError` in here working.
+    """
 
 HERE = Path(__file__).resolve().parent
 load_dotenv(HERE / ".env")
 
-mcp = FastMCP("pa-demo")
+# FastMCP was renamed MCPServer in mcp 2.x; decorators, annotations and output
+# schemas carried over unchanged. Pass the version explicitly: 2.x reports an empty
+# serverInfo.version otherwise, where 1.x quietly reported the SDK's own.
+mcp = MCPServer("power-automate", version=__version__)
 
 # ---------------------------------------------------------------------------
 # LAYER 1 - AUTH
@@ -112,18 +140,25 @@ def _az(args: list[str]) -> str:
     user-supplied free text.
     """
     cmd = "az " + " ".join(f'"{a}"' if " " in a else a for a in args)
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True,
-                          stdin=subprocess.DEVNULL)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, shell=True,
+                              stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise PowerAutomateError(
+            f"Azure CLI did not answer within 90s ({cmd}). It is usually waiting on an "
+            "interactive sign-in: run `az login` in a terminal."
+        ) from None
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout).strip()[:400]
-        raise RuntimeError(f"Azure CLI call failed ({cmd}): {err}\nRun `az login` first.")
+        raise PowerAutomateError(f"Azure CLI call failed ({cmd}): {err}\nRun `az login` first.")
     out = proc.stdout.strip()
     if not out:
-        raise RuntimeError(f"Azure CLI returned nothing for: {cmd}")
+        raise PowerAutomateError(f"Azure CLI returned nothing for: {cmd}")
     return out
 
 
 _token_cache: tuple[str, float] | None = None
+_token_lock = threading.Lock()
 
 
 def _token(force: bool = False) -> str:
@@ -132,14 +167,19 @@ def _token(force: bool = False) -> str:
     The CLI holds its own refresh token, so this is cheap after the first call.
     The 45-minute cache avoids shelling out on every request, and the 401 retry in
     _call forces a refresh if the token dies sooner than expected.
+
+    Locked because mcp 2.x runs synchronous tools on worker threads, so two tool
+    calls can now arrive here at once. Without the lock both would shell out to az
+    on a cold cache - harmless, but a second 1-2 second subprocess for nothing.
     """
     global _token_cache
-    if _token_cache and not force and _token_cache[1] - time.time() > 120:
-        return _token_cache[0]
-    token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
-                 *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
-    _token_cache = (token, time.time() + 45 * 60)
-    return token
+    with _token_lock:
+        if _token_cache and not force and _token_cache[1] - time.time() > 120:
+            return _token_cache[0]
+        token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
+                     *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
+        _token_cache = (token, time.time() + 45 * 60)
+        return token
 
 
 _env_id: str | None = None
@@ -187,7 +227,10 @@ def _call(method: str, path: str, *, params: dict | None = None, body: Any = Non
     headers = {"Authorization": f"Bearer {_token()}", "Content-Type": "application/json"}
 
     for attempt in range(4):
-        r = _http.request(method, url, params=params, json=body, headers=headers)
+        try:
+            r = _http.request(method, url, params=params, json=body, headers=headers)
+        except httpx.HTTPError as exc:  # DNS, TLS, timeout: no response to read a message from
+            raise PowerAutomateError(f"Could not reach the Power Automate API ({method} {path}): {exc}") from exc
 
         if r.status_code < 300:
             return r.json() if r.content else {"status": "ok"}
@@ -203,9 +246,9 @@ def _call(method: str, path: str, *, params: dict | None = None, body: Any = Non
             msg = r.json().get("error", {}).get("message") or r.text[:400]
         except ValueError:
             msg = r.text[:400]
-        raise RuntimeError(f"Power Automate API {r.status_code}: {msg}")
+        raise PowerAutomateError(f"Power Automate API {r.status_code}: {msg}")
 
-    raise RuntimeError(f"retries exhausted: {method} {path}")
+    raise PowerAutomateError(f"retries exhausted: {method} {path}")
 
 
 def _list(path: str, *, params: dict | None = None, cap: int = 50) -> list[dict]:
@@ -590,7 +633,7 @@ def _raise_on_errors(issues: list[dict]) -> list[dict]:
     errors = [i for i in issues if i["severity"] == "error"]
     if errors:
         detail = "; ".join(f'{i["rule"]}: {i["message"]}' for i in errors)
-        raise RuntimeError(f"Definition rejected locally before calling the API - {detail}")
+        raise PowerAutomateError(f"Definition rejected locally before calling the API - {detail}")
     return [i for i in issues if i["severity"] == "warning"]
 
 
@@ -935,11 +978,14 @@ def update_flow_definition(flow_id: str, definition: dict, connection_references
                           "source": "Embedded",
                           "id": "/providers/Microsoft.PowerApps/apis/shared_office365"}}.
 
-    LIMITATION: flows whose connections were bound in the maker portal become
-    Dataverse connection references and cannot be updated through this endpoint
-    (get_flow reports the host as `connectionName`, the PATCH wants
-    `connectionReferenceName`, and the reference itself cannot be minted here).
-    Edit those in the portal.
+    WHICH FLOWS THIS REACHES, corrected 2026-11-03. The old note here said any flow
+    bound in the maker portal was out of reach. Measured 2026-07-28 on a flow built in
+    My flows in the portal: its references come back with source "Embedded", and a PATCH carrying
+    them succeeds. Keep the action hosts on `connectionName` exactly as stored.
+    The real limit is SOLUTION flows. Their connections are Dataverse connection
+    references: the PATCH wants `connectionReferenceName`, and the reference itself
+    cannot be minted through this endpoint. For those, use
+    update_solution_flow_definition in extras.py, which writes the Dataverse row.
     """
     notes = _normalise_definition(definition)
     warnings = _raise_on_errors(_validate_definition(definition, connection_references)) + notes
@@ -1022,8 +1068,9 @@ def bind_connection(
     If one is missing it binds nothing and returns status "incomplete", listing each
     unresolved connector with a create_url. Existing bindings are merged, never dropped.
 
-    Does NOT work on solution or portal-bound flows: their connections are Dataverse
-    connection references which cannot be minted here. Edit those in the portal.
+    Does NOT work on solution flows: their connections are Dataverse connection
+    references, which cannot be minted here. Bind those in the portal, or edit the
+    stored definition with update_solution_flow_definition in extras.py.
     """
     if connection_name:
         candidates = {connection_name: {"connection_name": connection_name, "connector": connector}}
@@ -1119,7 +1166,7 @@ def bind_connection(
         "connection_name": resolved,
         "connections_on_flow": bound_count,
         "started": started,
-        "hint": "connections_on_flow should be >= 1. If it is 0 the flow is portal-bound and must be edited in the portal.",
+        "hint": "connections_on_flow should be >= 1. If it is 0 the flow is a solution flow: bind it in the portal.",
     }
 
 

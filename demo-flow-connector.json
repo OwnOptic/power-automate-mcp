@@ -35,7 +35,7 @@
           "location": "Channel",
           "body/recipient/groupId": "@outputs('Load_target')['team_id']",
           "body/recipient/channelId": "@outputs('Load_target')['channel_id']",
-          "body/messageBody": "<p>pa-demo verification - this post is expected to fail</p>"
+          "body/messageBody": "<p>power-automate-mcp verification - this post is expected to fail</p>"
         }
       }
     }

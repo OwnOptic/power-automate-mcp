@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1044" height="640" viewBox="0 0 1044 640" role="img" aria-label="Sequence of explain_run: the action record says Failed with no error, so the server follows the outputsLink to the SAS content blob, reads the real error, and pairs it with upstream outputs.">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#F26F21"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker><marker id="arrn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2A3B4E"/></marker></defs>
+<rect x="0" y="0" width="1044" height="640" rx="14" fill="#FFFFFF"/>
+<rect x="24" y="22" width="172" height="76" rx="10" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<g transform="translate(98 33) scale(1.0)" fill="none" stroke="#2A3B4E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/>
+  <path d="M4 21v-1a8 8 0 0 1 16 0v1"/></g>
+<text x="110" y="84" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">You</text>
+<line x1="110" y1="98" x2="110" y2="560" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="224" y="22" width="172" height="76" rx="10" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<g transform="translate(298 33) scale(1.0)" fill="none" stroke="#2A3B4E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 L13.4 10.6 L20.5 12 L13.4 13.4 L12 20.5 L10.6 13.4 L3.5 12 L10.6 10.6 Z"/></g>
+<text x="310" y="84" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">Claude</text>
+<line x1="310" y1="98" x2="310" y2="560" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="436" y="22" width="172" height="76" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<g transform="translate(510 33) scale(1.0)" fill="none" stroke="#F26F21" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16,18 22,12 16,6"/>
+  <polyline points="8,6 2,12 8,18"/>
+  <line x1="14" y1="4" x2="10" y2="20"/></g>
+<text x="522" y="84" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">power-automate-mcp</text>
+<line x1="522" y1="98" x2="522" y2="560" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="648" y="22" width="172" height="76" rx="10" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<g transform="translate(721 32) scale(0.2708333333333333)"><g clip-path="url(#pa_clip0_4303_1230)">
+<g clip-path="url(#pa_clip1_4303_1230)">
+<path d="M52.5093 3C55.3657 3 58.0858 4.22148 59.9834 6.35636L82.6577 31.8649C88.9106 38.8995 85.0005 50.0661 75.7251 51.6632L21.5 61L28.2997 53.3134C30.9819 50.2813 30.9765 45.7235 28.287 42.6979L7.79435 19.6436C2.06189 13.1946 6.63995 3 15.2684 3H52.5093Z" fill="url(#pa_paint0_linear_4303_1230)"/>
+<path d="M15.2684 93C6.63995 93 2.0619 82.8054 7.79436 76.3563L59.0945 18.6436C62.4624 14.8548 62.4624 9.14522 59.0945 5.35636L57 3L91.0945 41.3564C94.4624 45.1453 94.4624 50.8548 91.0945 54.6437L59.9834 89.6436C58.0858 91.7785 55.3657 93 52.5093 93H15.2684Z" fill="url(#pa_paint1_linear_4303_1230)"/>
+<path d="M15.2684 93C6.63995 93 2.0619 82.8054 7.79436 76.3563L59.0945 18.6436C62.4624 14.8548 62.4624 9.14522 59.0945 5.35636L57 3L91.0945 41.3564C94.4624 45.1453 94.4624 50.8548 91.0945 54.6437L59.9834 89.6436C58.0858 91.7785 55.3657 93 52.5093 93H15.2684Z" fill="url(#pa_paint2_linear_4303_1230)"/>
+<path d="M38.3611 93C33.184 93 30.4371 86.8833 33.8766 83.0139L75.0945 36.6436C78.4624 32.8548 78.4624 27.1452 75.0945 23.3563L71 18.75L91.0945 41.3563C94.4624 45.1452 94.4624 50.8547 91.0946 54.6436L59.9834 89.6437C58.0858 91.7785 55.3657 93 52.5093 93H38.3611Z" fill="url(#pa_paint3_linear_4303_1230)"/>
+</g>
+</g>
+<defs>
+<linearGradient id="pa_paint0_linear_4303_1230" x1="48" y1="31.5" x2="14" y2="-2.50001" gradientUnits="userSpaceOnUse">
+<stop stop-color="#102784"/>
+<stop offset="0.274053" stop-color="#1B44B1"/>
+<stop offset="1" stop-color="#2764E7"/>
+</linearGradient>
+<linearGradient id="pa_paint1_linear_4303_1230" x1="76.5" y1="25" x2="11.5" y2="91.5" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0FAFFF"/>
+<stop offset="0.177827" stop-color="#4894FE"/>
+<stop offset="1" stop-color="#2764E7"/>
+</linearGradient>
+<linearGradient id="pa_paint2_linear_4303_1230" x1="28.5" y1="72" x2="38.5" y2="83.5" gradientUnits="userSpaceOnUse">
+<stop stop-color="#2764E7" stop-opacity="0"/>
+<stop offset="1" stop-color="#2052CB"/>
+</linearGradient>
+<linearGradient id="pa_paint3_linear_4303_1230" x1="89" y1="38.5" x2="43" y2="90.5" gradientUnits="userSpaceOnUse">
+<stop stop-color="#6CE0FF"/>
+<stop offset="0.211723" stop-color="#66C0FF"/>
+<stop offset="1" stop-color="#58AAFE"/>
+</linearGradient>
+<clipPath id="pa_clip0_4303_1230">
+<rect width="96" height="96" fill="white"/>
+</clipPath>
+<clipPath id="pa_clip1_4303_1230">
+<rect width="96" height="96" fill="white"/>
+</clipPath>
+</defs></g>
+<text x="734" y="84" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">Power Automate API</text>
+<line x1="734" y1="98" x2="734" y2="560" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+<rect x="848" y="22" width="172" height="76" rx="10" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1.5"/>
+<g transform="translate(922 33) scale(1.0)" fill="none" stroke="#2A3B4E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+  <polyline points="14,2 14,8 20,8"/>
+  <line x1="8" y1="13" x2="16" y2="13"/>
+  <line x1="8" y1="17" x2="13" y2="17"/></g>
+<text x="934" y="84" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2A3B4E" text-anchor="middle">SAS content link</text>
+<line x1="934" y1="98" x2="934" y2="560" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="4 4"/>
+<path d="M110 138H304" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<circle cx="126" cy="123" r="9" fill="#2A3B4E"/>
+<text x="126" y="127" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="142" y="128" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">It failed. What happened?</text>
+<path d="M310 188H516" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<circle cx="326" cy="173" r="9" fill="#2A3B4E"/>
+<text x="326" y="177" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="342" y="178" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">explain_run(flow_id, run_id)</text>
+<path d="M522 238H728" fill="none" stroke="#2A3B4E" stroke-width="2" marker-end="url(#arrn)"/>
+<circle cx="538" cy="223" r="9" fill="#2A3B4E"/>
+<text x="538" y="227" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="554" y="228" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">GET /runs/{run_id}/actions</text>
+<path d="M734 288H528" fill="none" stroke="#5B6B7C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrg)"/>
+<circle cx="538" cy="273" r="9" fill="#2A3B4E"/>
+<text x="538" y="277" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+<text x="554" y="278" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">Post_message: Failed, no error</text>
+<rect x="536" y="302" width="184" height="52" rx="10" fill="#FDECEA" stroke="#E8A39B" stroke-width="1.5"/>
+<g transform="translate(546 316) scale(0.8333333333333334)" fill="none" stroke="#B42318" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+  <line x1="12" y1="9" x2="12" y2="13"/>
+  <circle cx="12" cy="17" r="0.8" fill="#B42318" stroke="none"/></g>
+<text x="574" y="323" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#B42318" text-anchor="start">A naive wrapper stops</text>
+<text x="574" y="341" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#B42318" text-anchor="start">here: "Failed", no reason</text>
+<path d="M522 392H928" fill="none" stroke="#F26F21" stroke-width="2" marker-end="url(#arr)"/>
+<circle cx="538" cy="377" r="9" fill="#F26F21"/>
+<text x="538" y="381" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">5</text>
+<text x="554" y="382" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#2A3B4E" text-anchor="start">GET outputsLink.uri  (the second hop)</text>
+<path d="M934 442H528" fill="none" stroke="#5B6B7C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrg)"/>
+<circle cx="538" cy="427" r="9" fill="#2A3B4E"/>
+<text x="538" y="431" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+<text x="554" y="432" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">404 NotFound: LocationLookupFailed ...</text>
+<path d="M522 470H572V500H528" fill="none" stroke="#F26F21" stroke-width="2" marker-end="url(#arr)"/>
+<text x="584" y="490" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">pair the failure with the outputs of the actions before it</text>
+<path d="M522 538H316" fill="none" stroke="#5B6B7C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrg)"/>
+<circle cx="326" cy="523" r="9" fill="#2A3B4E"/>
+<text x="326" y="527" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">7</text>
+<text x="342" y="528" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="#2A3B4E" text-anchor="start">error + Load_target outputs</text>
+<rect x="24" y="572" width="996" height="48" rx="10" fill="#2A3B4E"/>
+<rect x="24" y="572" width="6" height="48" rx="3" fill="#F26F21"/>
+<text x="48" y="593" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">One tool call. About a dozen clicks through the run history view.</text>
+<text x="48" y="611" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#D5DEE8" text-anchor="start">Claude to you: the channel id that Load_target emitted does not exist. Symptom and cause are different actions.</text>
+</svg>

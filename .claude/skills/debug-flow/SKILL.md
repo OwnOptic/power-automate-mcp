@@ -8,6 +8,10 @@ description: Diagnose a failing Power Automate flow with the power-automate MCP 
 Work the loop in order. Skip a step only when you already hold its output.
 
 1. **Resolve the flow.** `list_flows`, match on `display_name`, keep the `flow_id`.
+   Not there? It may be in another environment: `list_environments` (`extras.py`)
+   shows which one the tools are pointed at. If a run is still going and doing
+   damage, `cancel_run` it first and `set_flow_state(..., "Stopped")` the flow -
+   cancelling undoes nothing, it only stops what has not run yet.
 2. **Find the failure.** `list_runs(flow_id, status="Failed")`. Newest first.
 3. **Diagnose one run.** `explain_run(flow_id, run_id)` on the newest failed run.
    - `failed_actions[].error` is the real error text, already resolved from the
@@ -28,7 +32,10 @@ Work the loop in order. Skip a step only when you already hold its output.
    - flaky, spread across actions - suspect trigger data or a connection, not logic
 6. **Fix and verify.** `get_flow` -> edit the returned `definition` ->
    `update_flow_definition` with the COMPLETE definition (there is no partial
-   update). Re-run with `run_flow`, then `explain_run` again to confirm.
+   update). Verify on the data that broke it: `resubmit_run(flow_id, run_id)` on
+   the failed run (`extras.py`) replays its original payload. `run_flow` starts a
+   fresh run with no payload, so for any flow fed by real data a green result there
+   proves nothing about this failure. Then `list_runs` and `explain_run` again.
 
 ## Rules learned the hard way
 
