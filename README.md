@@ -29,20 +29,28 @@ pip install -r requirements.txt
 az login
 ```
 
-Then add this to `.mcp.json` (Claude Code), using the absolute path to `server.py`:
+Then add this to `.mcp.json` (Claude Code), with absolute paths:
 
 ```json
 {
   "mcpServers": {
-    "power-automate": { "command": "python", "args": ["/absolute/path/to/server.py"] },
+    "power-automate":         { "command": "python", "args": ["/absolute/path/to/server.py"] },
+    "power-automate-extras":  { "command": "python", "args": ["/absolute/path/to/extras.py"] },
+    "power-automate-copilot": { "command": "python", "args": ["/absolute/path/to/copilot_studio.py"] },
     "microsoft-learn": { "type": "http", "url": "https://learn.microsoft.com/api/mcp" }
   }
 }
 ```
 
-`microsoft-learn` is optional: it lets Claude look up connector actions in Microsoft's
-documentation instead of guessing them. On Claude Desktop, put `power-automate` in
-`claude_desktop_config.json` and add the Learn URL under Settings > Connectors.
+`power-automate` alone is the ten-tool core. `-extras` adds environments, start and stop,
+cancel, resubmit and solutions; `-copilot` adds Copilot Studio agents. `microsoft-learn`
+lets Claude look up connector actions in Microsoft's documentation instead of guessing
+them. Use the same Python for all three - the venv one, if you made one. On Claude
+Desktop, put the local servers in `claude_desktop_config.json` and add the Learn URL under
+Settings > Connectors.
+
+Everything runs **locally**: each person runs their own copy, signed in as themselves.
+There is no shared server and nothing to host.
 
 **Try it.** Restart your client, then ask:
 
@@ -51,8 +59,13 @@ documentation instead of guessing them. On Claude Desktop, put `power-automate` 
 - "Create a flow from demo-flow.json and run it." (It is meant to fail. Then ask why.)
 
 > **Use a test environment.** The server acts as you, so it can change anything you
-> can. If your `az` is signed in to more than one tenant, pin the right one with
-> `PA_TENANT_ID=<tenant id>` in a `.env` file next to `server.py`.
+> can. If your `az` is signed in to more than one tenant, give the server its own
+> `az` profile for the demo tenant - see [One az profile per tenant](#one-az-profile-per-tenant) -
+> and pin it with `PA_TENANT_ID=<tenant id>` in a `.env` file next to `server.py`.
+>
+> For the skills that manage solutions, install the
+> [Power Platform CLI](https://learn.microsoft.com/power-platform/developer/cli/introduction)
+> (`pac`) too. The MCP servers do not need it.
 
 Everything below is the long version: how it works, the Power Automate traps it
 handles, and why you might build your own.
@@ -479,6 +492,31 @@ It is a guard, not a switch. It will not go and find the right logged-in account
 you - it only stops you using the wrong one. Unset is fine on a single-tenant machine
 and a live grenade on any other.
 
+#### One az profile per tenant
+
+The switch is a separate Azure CLI profile. `az` keeps everything in one folder, and
+`AZURE_CONFIG_DIR` points it at another, so the server can live in the demo tenant while
+your own terminal stays wherever your day job is:
+
+```powershell
+$env:AZURE_CONFIG_DIR = "$HOME\.azure-demo"
+az login --tenant <demo tenant id>
+az account show --query "{tenant:tenantId, user:user.name}"
+```
+
+Then give each server the same folder in `.mcp.json`:
+
+```json
+"power-automate": {
+  "command": "python", "args": ["/absolute/path/to/server.py"],
+  "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" }
+}
+```
+
+Your everyday `az` (and its active account) is untouched; the servers only ever see the
+demo profile. If you are already signed in to the demo tenant in your main profile, copy
+`~/.azure` to the new folder and `az account set` there instead of signing in again.
+
 There is no secret anywhere in this design. The only credential involved is the
 refresh token the Azure CLI already holds on your machine, which this repo never
 reads or writes.
@@ -661,16 +699,17 @@ this repo is arguing for.
 
 ## Tool reference
 
-Ten tools in `server.py`, nine in [`extras.py`](#running-extraspy), plus a companion
-server for the documentation lookups none of them can do.
+Ten tools in `server.py`, nine in [`extras.py`](#running-extraspy), six in
+[`copilot_studio.py`](#the-copilot_studiopy-tools), plus a companion server for the
+documentation lookups none of them can do.
 
-| Group | `server.py` (the teaching core) | `extras.py` (the second server) |
-| --- | --- | --- |
-| **Find** | `list_flows`, `get_flow` | `list_environments`, `list_solutions` |
-| **Author** | `create_flow`, `update_flow_definition`, `bind_connection` | `get_solution_flow_clientdata`, `update_solution_flow_definition` |
-| **Operate** | `run_flow`, `list_runs` | `set_flow_state`, `cancel_run`, `resubmit_run`, `get_trigger_url`, `delete_flow` |
-| **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` | |
-| **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` | |
+| Group | `server.py` (the teaching core) | `extras.py` | `copilot_studio.py` |
+| --- | --- | --- | --- |
+| **Find** | `list_flows`, `get_flow` | `list_environments`, `list_solutions` | `list_agents`, `get_agent` |
+| **Author** | `create_flow`, `update_flow_definition`, `bind_connection` | `get_solution_flow_clientdata`, `update_solution_flow_definition` | `create_agent_flow`, `add_flow_tool`, `update_agent_instructions` |
+| **Operate** | `run_flow`, `list_runs` | `set_flow_state`, `cancel_run`, `resubmit_run`, `get_trigger_url`, `delete_flow` | `publish_agent` |
+| **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` | | |
+| **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` | | |
 
 Which one to reach for:
 
@@ -701,6 +740,12 @@ words on exactly that distinction.
 | `list_solutions` | extras | no | is this flow in a solution, and is it managed? | `list_flows`, which does not show solutions |
 | `get_solution_flow_clientdata` | extras | no | reading a solution flow before editing it | `get_flow`, whose copy cannot be written back |
 | `update_solution_flow_definition` | extras | yes | editing a solution flow | `update_flow_definition`, which refuses these |
+| `list_agents` | copilot | no | you need an `agent_id` | `list_flows`: agents are not flows |
+| `get_agent` | copilot | no | before changing an agent: instructions, tools, knowledge | `get_flow` for the flows behind its tools |
+| `create_agent_flow` | copilot | yes | a flow an agent will call | `create_flow`, whose flows an agent cannot call |
+| `add_flow_tool` | copilot | yes | plugging that flow into the agent | `bind_connection`, which is about connectors |
+| `update_agent_instructions` | copilot | yes | changing what the agent does and says | `add_flow_tool`, which changes what it can do |
+| `publish_agent` | copilot | yes | making changes live in Teams and Copilot | the test pane, which sees drafts already |
 
 ### `list_flows(state="", top=25)`
 
@@ -1024,6 +1069,57 @@ there deactivates the flow; the tool reactivates it if it was on, and says so un
 `reactivated`. Leave `connection_references` out unless you mean to change them.
 Returns `previous_definition`, as `update_flow_definition` does.
 
+### The `copilot_studio.py` tools
+
+A third server, and the FAQ's "same four layers, different API" made real. Copilot
+Studio agents are Dataverse rows - a `bots` row plus one `botcomponents` row per topic,
+tool, knowledge source and instruction set - so the `az` session that runs flows edits
+agents too, with a token for the environment's org URL. It imports its auth, transport
+and Dataverse helpers from the other two files and adds no auth code of its own.
+
+The loop it exists for: **Claude builds a flow, plugs it into an agent as a tool, tells
+the agent when to use it, and publishes.** The [`agent-tool`](.claude/skills/agent-tool/SKILL.md)
+skill walks it.
+
+#### `list_agents()` and `get_agent(agent_id)`
+
+`list_agents` returns `[{agent_id, name, schema_name, last_publish, published_on}]`.
+`get_agent` reads an agent the way its maker thinks about it: `instructions` as plain
+text (the Instructions box), `model`, `web_browsing`, `tools` (each with its kind, and
+its `flow_id` when it is a flow), `knowledge`, `child_agents`, `custom_topics` apart from
+the `system_topics` every agent ships with, and `last_publish`.
+
+#### `create_agent_flow(display_name, definition, solution="", start=True)`
+
+Creates a flow an agent can call. **Use it instead of `create_flow` for agent tools**:
+Copilot Studio only calls solution flows, and a flow made through the Power Automate API
+has no Dataverse `workflow` row at all ([gotcha 10](#10-an-agent-can-only-call-a-solution-flow)).
+This writes that row - definition in `clientdata`, optionally in a named solution - and
+turns the flow on. The definition needs the agent trigger (`Request`, kind `Skills`) and
+reply (`Response`, kind `Skills`); [`demo-agent-flow.json`](demo-agent-flow.json) is a
+working one. Returns a `flow_id` that every other tool accepts.
+
+#### `add_flow_tool(agent_id, flow_id, display_name, description)`
+
+Adds the flow to the agent as a tool. Inputs and outputs are read from the flow itself.
+`description` is what the agent's orchestrator reads to decide **when** to call it, so
+it is the most important argument. Refuses a flow the agent cannot call, with the reason.
+Calling it again for the same flow refreshes the tool instead of adding a second.
+
+#### `update_agent_instructions(agent_id, instructions)`
+
+Replaces the instructions and returns `previous_instructions`, the only undo there is.
+Rewrites that one YAML key and leaves every other byte of the component alone.
+**Refuses `{` and `}`**: Copilot Studio parses braces in instructions as Power Fx, and the
+agent then fails on every message while the save itself succeeds.
+
+#### `publish_agent(agent_id, wait_seconds=120)`
+
+Publishes and waits for the real result: `Succeeded`, `Failed`, `timeout`, or
+`no_change` for an agent with nothing new to publish (which records no new publish
+operation, so a naive wait never ends). Changes are drafts until this runs: the test pane
+sees them, Teams and Microsoft 365 Copilot do not.
+
 ### Companion server: Microsoft Learn MCP
 
 The ten tools build, run and diagnose flows. None of them can tell you what goes
@@ -1274,6 +1370,12 @@ says it "corresponds to the run name for triggers that resulted in a run" - and 
 trigger name is on the run record, so `resubmit_run` reads the run first and needs
 only the `run_id` from you.
 
+And it only replays runs the service started. Measured on 3 November 2026: a run fired
+by its own Recurrence trigger resubmitted fine; a run started through `run_flow` was
+refused with `403 This flow run was started by someone else and you can only resubmit
+runs that you've initiated`. For a Button flow that costs nothing - there is no payload
+to replay - so `run_flow` again is the retest.
+
 This one is in here because this repository got it wrong twice: `extras.py` shipped
 calling the 404 route, and so did the example in [Extending it](#extending-it), which
 taught the wrong route to everyone who copied it. A docstring is only an asset while
@@ -1306,6 +1408,31 @@ raises it with Dataverse's own message instead of calling `raise_for_status()`, 
 `HTTPStatusError` would count as a crash. Three tests pin it down: one that a
 `ToolError`'s text arrives, a control test showing a plain exception's text does not,
 and one that fails the build if a bare `raise RuntimeError(` comes back.
+
+### 10. An agent can only call a solution flow
+
+Microsoft's FAQ says it in one line: to add a flow to an agent, "it must be a solution
+flow". What it does not say is that a flow created through the Power Automate API never
+is one, even in an environment with Dataverse. Measured on 3 November 2026:
+
+```
+create_flow(...)                          -> flow_id a0179a97-...
+GET {org}/api/data/v9.2/workflows(a0179a97-...)
+                                          -> 404 Entity 'workflow' ... Does Not Exist
+```
+
+No `workflow` row means no solution, and a Copilot Studio tool pointing at it has nothing
+to point at. The trap is that nothing complains early: the tool component saves, and the
+agent even **publishes successfully**. It only fails when a user's question makes the
+agent call it.
+
+So `copilot_studio.py` creates agent flows on the Dataverse side instead: `POST workflows`
+with `category: 5` (a modern cloud flow), the definition in `clientdata`, and
+`MSCRM.SolutionUniqueName` to put it in a named solution, then `statecode: 1` to turn it
+on. The Power Automate API sees the result as an ordinary flow with the same id, so
+`run_flow`, `list_runs` and `explain_run` all work on it. And `add_flow_tool` checks for
+the `workflow` row first and refuses with the reason, because "saves, publishes, then
+fails in front of a user" is the most expensive kind of failure there is.
 
 ---
 
@@ -1417,12 +1544,16 @@ would have been caught by one).
 - `tests/test_shaping.py` - the pure functions, one test per documented gotcha: the
   validator's rules, the designer schema fix, seven-digit timestamps, the SAS second hop
   and the `innerError` preference, payload shaping
-- `tests/test_tools.py` - every tool against the fake API, both servers
+- `tests/test_tools.py` - every Power Automate tool against the fake API
+- `tests/test_copilot_studio.py` - the agent tools against a fake Dataverse: the three
+  shapes the instructions YAML comes in, that only that key is rewritten, the brace
+  guard, the TaskDialog built from a flow, refresh instead of duplicate, publish waiting
 - `tests/test_mcp_surface.py` - what a client sees, through the SDK's own in-memory
   client: tool counts, annotations, output schemas, and that error text reaches the model
 
-CI runs it on Python 3.10 and 3.13 on Linux and 3.12 on Windows, along with the README's
-import check and a check that `requirements.txt` is what `requirements.in` compiles to.
+77 tests. CI runs them on Python 3.10 and 3.13 on Linux and 3.12 on Windows, along with
+the import check for all three servers and a check that `requirements.txt` is what
+`requirements.in` compiles to.
 What it cannot prove is that the API still answers the way the fakes say. That is what
 [Verified, and not](#verified-and-not) is for.
 
@@ -1435,14 +1566,15 @@ which tool to reach for first, when to move to the next one, and when to stop. T
 knowledge lives one layer up, in skills - markdown playbooks a coding agent loads
 when the task matches.
 
-Two ship in [`.claude/skills/`](.claude/skills/):
+Five ship in [`.claude/skills/`](.claude/skills/):
 
-- **[debug-flow](.claude/skills/debug-flow/SKILL.md)** - the diagnose loop:
-  `list_runs` -> `explain_run`, then `compare_runs` when the error is clear but the
-  cause is not, then `analyze_flow_health` when it recurs, then fix and verify.
-- **[build-flow](.claude/skills/build-flow/SKILL.md)** - the authoring sequence:
-  the definition rules, create then `bind_connection` then start, and closing the
-  loop with a run after every change.
+| Skill | What it walks | Built on |
+| --- | --- | --- |
+| **[debug-flow](.claude/skills/debug-flow/SKILL.md)** | `list_runs` -> `explain_run`, then `compare_runs` when the error is clear but the cause is not, `analyze_flow_health` when it recurs, then fix and verify | `server.py` |
+| **[build-flow](.claude/skills/build-flow/SKILL.md)** | the definition rules, create then `bind_connection` then start, a run after every change | `server.py` |
+| **[agent-tool](.claude/skills/agent-tool/SKILL.md)** | build an agent flow, plug it into the agent, update its instructions, publish, prove the agent called it | `copilot_studio.py` |
+| **[dataverse-schema](.claude/skills/dataverse-schema/SKILL.md)** | publisher, solution, tables, columns, choices and lookups from a JSON spec: plan, read, apply | [`scripts/dataverse_schema.py`](scripts/dataverse_schema.py) |
+| **[solution-from-base](.claude/skills/solution-from-base/SKILL.md)** | export or take a solution .zip, unpack it, change it by copying a working block, bump the version, pack, import with `pac` | the Power Platform CLI |
 
 If you open this repo in Claude Code they load automatically. If you installed the
 server into another project, copy the skill folders into that project's
@@ -1452,6 +1584,46 @@ The division of labour is the same one the four layers made: put per-tool
 constraints in the docstring, put cross-tool workflow in a skill. When the model
 gets a single call wrong, fix the docstring; when it picks the wrong tool or gives
 up too early, fix the skill.
+
+### Write your own skill
+
+A skill is a folder with one file, `SKILL.md`:
+
+```markdown
+---
+name: solution-from-base
+description: Take an existing Power Platform solution, unpack it, change it as a base,
+  pack it and import it back with pac. Use when asked to export, import, copy, extend
+  or modify a solution, or "start from this solution".
+---
+
+# Modify a solution as a base, with pac
+
+## 0. Point pac at the right place - every time
+...
+```
+
+- **The `description` is the trigger.** Claude reads every skill's description and loads
+  the body only when the task matches, so write it as "what it does, then *Use when*"
+  followed by the words people actually say. A vague description is a skill that never
+  loads.
+- **The body is a procedure, not documentation.** Numbered steps in the order they must
+  happen, each with the exact command or tool, then what to check. Put the step that
+  prevents damage first - in `solution-from-base` that is "point pac at the right
+  environment", because the active `pac` profile on a consultant's laptop is often a
+  client's production.
+- **Write down what went wrong, not what the docs say.** "Bump `<Version>` or the import
+  reports success and changes nothing" is worth more than a paragraph on what a solution
+  is. Same rule as docstrings: everything you get wrong twice.
+- **Ship the tooling with it.** A skill can call scripts in the repo
+  (`scripts/dataverse_schema.py`) and point at working examples
+  (`schema/orders.example.json`, `demo-agent-flow.json`). Examples beat descriptions.
+- **Test it like code.** Start a fresh session, ask for the task the way a colleague
+  would, and watch whether the skill loads and whether the model follows it. Every
+  skill here was run end to end against a real tenant before it was committed.
+
+Where it lives decides who gets it: `.claude/skills/` in a repo (everyone who opens the
+repo), `~/.claude/skills/` (you, in every project), or a plugin (your whole team).
 
 ---
 
@@ -1496,7 +1668,9 @@ up too early, fix the skill.
 - **Write tools are live.** `create_flow`, `update_flow_definition`, `bind_connection`
   and `run_flow` change real state with no confirmation step, and so do
   `set_flow_state`, `cancel_run`, `resubmit_run` and `update_solution_flow_definition`
-  in `extras.py`. Only `delete_flow` asks twice. Every tool carries MCP annotations
+  in `extras.py`, and `create_agent_flow`, `add_flow_tool`, `update_agent_instructions`
+  and `publish_agent` in `copilot_studio.py` - a published agent change reaches every
+  user of that agent. Only `delete_flow` asks twice. Every tool carries MCP annotations
   (`readOnlyHint`, `destructiveHint`), so a client that honours them can ask before
   the write ones. If you want this in a production tenant, split the read tools and
   write tools into two servers and connect the write server only when you mean it.
@@ -1594,18 +1768,34 @@ to answer. Which is the entire argument of this repository.
 Everything in the table above was run live, not read from source, on 17 August 2026.
 The ten `server.py` tools were all exercised against a real tenant then, on `mcp` 1.x.
 
-Since then, and not yet run live in this repository:
+On 3 November 2026, on `mcp` 2.x, against a real tenant, driven over **stdio** by the
+SDK's own client exactly the way Claude Code launches the servers:
 
-- the move to `mcp` 2.x. The offline suite covers the whole MCP surface through the
-  SDK's own client, but no live tenant has seen this version
-- `list_environments`, `set_flow_state`, `cancel_run` and `list_solutions`, which are
-  ported from the production server rather than written fresh
-- the corrected `resubmit_run`, which follows Microsoft's documented route
+- the whole core loop: `list_flows`, `create_flow`, `run_flow`, `list_runs`,
+  `explain_run`, `get_flow`, `update_flow_definition`, `compare_runs`,
+  `analyze_flow_health`, plus API errors reaching the client as text
+- `list_environments`, `set_flow_state` (stop, then start, read back), `cancel_run`
+  (its refusal on a finished run), `resubmit_run` (works on a trigger-started run,
+  403 on a `run_flow` one, both recorded in [gotcha 8](#8-resubmit-belongs-to-the-trigger-not-to-the-run)),
+  `delete_flow`
+- all six `copilot_studio.py` tools on a real agent: instructions read and rewritten
+  (and braces refused), an agent flow created in Dataverse, added as a tool, refreshed,
+  and the agent **published successfully**; a My flows flow refused with its reason
+- `scripts/dataverse_schema.py`: publisher, solution, table, six column types and a
+  lookup created and published, then a re-run reporting everything as existing
+- the `solution-from-base` round trip with `pac` 2.6.3: export, unpack, a column added
+  by hand in `Entity.xml`, version bumped, pack, import, and the column confirmed in
+  Dataverse
+
+Not verified:
+
+- an agent calling a tool **in conversation**. Publishing proves the tool is valid; only
+  a question in the test pane proves the agent chooses it. The `agent-tool` skill ends
+  with exactly that check
 - `update_solution_flow_definition` against an actual managed-solution flow, and
   anything in an environment without a Dataverse instance
-
-Every one of those is covered by the offline tests, which prove the code calls the
-routes it means to. Only a tenant proves the routes still answer.
+- `get_trigger_url` and `bind_connection` on `mcp` 2.x (both unchanged since their
+  1.x live runs)
 
 ---
 
@@ -1633,7 +1823,9 @@ Technically yes, and you should think hard first. See [Security](#security).
 
 **Does this work with Copilot Studio, Dataverse, or Azure DevOps?**
 Same four layers, different base URL and scope. Swap those two constants and the
-structure holds unchanged. That is why the file is organised the way it is.
+structure holds unchanged. That is why the file is organised the way it is - and
+[`copilot_studio.py`](#the-copilot_studiopy-tools) is the proof for Copilot Studio:
+six tools, no new auth code, the Dataverse audience borrowed from the same `az` session.
 
 One caveat on transport. Pointing this server *at* Dataverse or Azure DevOps is the
 two-constant change above, and it stays a stdio server. Making it callable *from*

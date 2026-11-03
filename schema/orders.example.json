@@ -1,0 +1,31 @@
+{
+  "publisher": {
+    "uniquename": "pamcpdemo",
+    "friendlyname": "PA MCP Demo",
+    "prefix": "pmd",
+    "optionvalueprefix": 71000
+  },
+  "solution": {
+    "uniquename": "PAMCPDemo",
+    "friendlyname": "PA MCP Demo",
+    "version": "1.0.0.0"
+  },
+  "language": 1033,
+  "tables": [
+    {
+      "name": "Order",
+      "plural": "Orders",
+      "description": "A customer order, looked up by the order status agent.",
+      "primary": "Order number",
+      "columns": [
+        { "name": "Status", "type": "choice", "options": ["New", "Shipped", "Delayed", "Delivered"] },
+        { "name": "Amount", "type": "decimal" },
+        { "name": "Due date", "type": "date" },
+        { "name": "Carrier", "type": "text", "max_length": 100 },
+        { "name": "Gift wrap", "type": "boolean" },
+        { "name": "Notes", "type": "memo" },
+        { "name": "Customer", "type": "lookup", "target": "account" }
+      ]
+    }
+  ]
+}
