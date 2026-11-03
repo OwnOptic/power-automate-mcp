@@ -25,6 +25,7 @@ definition language reference (Power Automate uses the same schema).
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import threading
@@ -73,6 +74,11 @@ class PowerAutomateError(ToolError, RuntimeError):
 
 HERE = Path(__file__).resolve().parent
 load_dotenv(HERE / ".env")
+
+# mcp 2.x configures logging at INFO, and at INFO httpx logs every request URL - SAS
+# content links included, signature and all. Those land in the MCP client's server log
+# and are enough to read a run's inputs and outputs until they expire. Keep it quiet.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # FastMCP was renamed MCPServer in mcp 2.x; decorators, annotations and output
 # schemas carried over unchanged. Pass the version explicitly: 2.x reports an empty

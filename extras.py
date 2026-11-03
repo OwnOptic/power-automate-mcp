@@ -286,6 +286,16 @@ def resubmit_run(flow_id: str, run_id: str) -> dict:
     The history name is the run id (the Logic Apps reference says it "corresponds to
     the run name for triggers that resulted in a run"), and the trigger name is read
     off the run itself, so you only pass the run_id.
+
+    ONLY RUNS THE SERVICE STARTED, measured 2026-11-03. A run fired by its own trigger
+    (a schedule, a new email, a new row) resubmits fine. A run started through run_flow
+    is refused:
+
+        403 This flow run was started by someone else and you can only resubmit
+            runs that you've initiated.
+
+    To retest a fix on a Button flow, use run_flow again; there is no payload to
+    replay anyway.
     """
     run = _call("GET", f"/environments/{env_id()}/flows/{flow_id}/runs/{run_id}")
     trigger = ((run.get("properties", {}) or {}).get("trigger") or {}).get("name")

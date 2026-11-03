@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": { "defaultValue": {}, "type": "Object" },
+    "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Skills",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "required": ["orderId"],
+          "properties": {
+            "orderId": {
+              "title": "orderId",
+              "description": "The order number the user asked about, for example SO-1042.",
+              "type": "string",
+              "x-ms-content-hint": "TEXT",
+              "x-ms-dynamically-added": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Orders": {
+      "type": "Compose",
+      "runAfter": {},
+      "inputs": {
+        "SO-1042": { "status": "Shipped", "eta": "Thursday", "carrier": "Swiss Post" },
+        "SO-1043": { "status": "Delayed at the warehouse", "eta": "next Monday", "carrier": "DHL" },
+        "SO-1044": { "status": "Delivered", "eta": "already delivered", "carrier": "Swiss Post" }
+      }
+    },
+    "Respond_to_the_agent": {
+      "type": "Response",
+      "kind": "Skills",
+      "runAfter": { "Orders": ["Succeeded"] },
+      "inputs": {
+        "statusCode": 200,
+        "body": {
+          "status": "@{coalesce(outputs('Orders')?[triggerBody()?['orderId']]?['status'], 'not found')}",
+          "eta": "@{coalesce(outputs('Orders')?[triggerBody()?['orderId']]?['eta'], 'unknown')}",
+          "carrier": "@{coalesce(outputs('Orders')?[triggerBody()?['orderId']]?['carrier'], 'unknown')}"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": { "title": "status", "type": "string", "x-ms-dynamically-added": true },
+            "eta": { "title": "eta", "type": "string", "x-ms-dynamically-added": true },
+            "carrier": { "title": "carrier", "type": "string", "x-ms-dynamically-added": true }
+          }
+        }
+      }
+    }
+  }
+}

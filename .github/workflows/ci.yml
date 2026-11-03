@@ -37,11 +37,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
 
-      - name: Both servers import and register their tools
+      - name: All three servers import and register their tools
         # The same check the README's setup prompt runs, with no environment set.
         run: |
           python -c "import asyncio, server; n = len(asyncio.run(server.mcp.list_tools())); print('server.py', n); assert n == 10"
           python -c "import asyncio, extras; n = len(asyncio.run(extras.mcp.list_tools())); print('extras.py', n); assert n == 9"
+          python -c "import asyncio, copilot_studio; n = len(asyncio.run(copilot_studio.mcp.list_tools())); print('copilot_studio.py', n); assert n == 6"
 
       - name: Tests
         run: python -m pytest -q

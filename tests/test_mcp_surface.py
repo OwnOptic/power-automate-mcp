@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from mcp import Client
 
+import copilot_studio
 import extras
 import server
 from conftest import FLOWS, flow, load
@@ -37,7 +38,7 @@ def test_servers_report_their_own_version():
     async def info(module):
         async with Client(module.mcp) as client:
             return client.server_info
-    for module in (server, extras):
+    for module in (server, extras, copilot_studio):
         assert asyncio.run(info(module)).version == server.__version__
 
 
@@ -52,18 +53,26 @@ def test_extras_adds_nine_and_overlaps_nothing():
     assert len(names) == 9 and not names & set(tools(server))
 
 
-@pytest.mark.parametrize("module", [server, extras])
+def test_copilot_studio_adds_six_and_overlaps_nothing():
+    names = set(tools(copilot_studio))
+    assert names == {"list_agents", "get_agent", "create_agent_flow", "add_flow_tool",
+                     "update_agent_instructions", "publish_agent"}
+    assert not names & (set(tools(server)) | set(tools(extras)))
+
+
+@pytest.mark.parametrize("module", [server, extras, copilot_studio])
 def test_every_tool_is_annotated_and_documented(module):
     for name, tool in tools(module).items():
         assert tool.annotations is not None and tool.annotations.title, name
         assert tool.description and len(tool.description) > 80, name
 
 
-@pytest.mark.parametrize("module", [server, extras])
+@pytest.mark.parametrize("module", [server, extras, copilot_studio])
 def test_read_only_hints_match_what_the_tool_does(module):
     writers = {"create_flow", "update_flow_definition", "bind_connection", "run_flow",
                "set_flow_state", "cancel_run", "delete_flow", "resubmit_run",
-               "update_solution_flow_definition"}
+               "update_solution_flow_definition", "create_agent_flow", "add_flow_tool",
+               "update_agent_instructions", "publish_agent"}
     for name, tool in tools(module).items():
         assert tool.annotations.read_only_hint is (name not in writers), name
 
@@ -110,7 +119,7 @@ def test_a_plain_exception_would_have_been_hidden(api, monkeypatch):
     assert result.is_error and "the reason the model needed" not in result.content[0].text
 
 
-@pytest.mark.parametrize("module", [server, extras])
+@pytest.mark.parametrize("module", [server, extras, copilot_studio])
 def test_no_bare_exception_can_hide_its_message(module):
     # Guards the port: a `raise RuntimeError(` or a stray raise_for_status() added later
     # would silently become "Error executing tool" for the model. The one
