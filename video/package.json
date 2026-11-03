@@ -1,0 +1,21 @@
+{
+  "name": "power-automate-mcp-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The explainer videos for power-automate-mcp, in English and French, rendered with Remotion.",
+  "scripts": {
+    "voice": "python make_voice.py",
+    "studio": "remotion studio src/index.ts",
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "typescript": "^5.4.0"
+  }
+}

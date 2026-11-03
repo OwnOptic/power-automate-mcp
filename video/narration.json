@@ -1,0 +1,53 @@
+{
+  "voices": {
+    "en": "en-US-AndrewNeural",
+    "fr": "fr-CH-FabriceNeural"
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "en": "This is power-automate-mcp. A small MCP server that runs on your own machine, and lets Claude build, run and debug your Power Automate flows, then hand them to your Copilot Studio agents.",
+      "fr": "Voici power-automate-mcp. Un petit serveur MCP qui tourne sur votre propre machine, et qui permet à Claude de construire, lancer et déboguer vos flux Power Automate, puis de les confier à vos agents Copilot Studio."
+    },
+    {
+      "id": "problem",
+      "en": "When a flow fails, the portal makes you click. The run, the action, the inputs, the outputs, and then the earlier step that actually caused it. A plain API wrapper is worse: for a connector failure, the action just says Failed. The real error sits behind a link.",
+      "fr": "Quand un flux échoue, le portail vous fait cliquer. L'exécution, l'action, les entrées, les sorties, puis l'étape précédente qui a vraiment causé l'erreur. Un simple accès à l'API fait pire : pour un échec de connecteur, l'action dit seulement Failed. La vraie erreur est cachée derrière un lien."
+    },
+    {
+      "id": "layers",
+      "en": "Every useful MCP server has four layers. Authentication and transport are commodity: Claude writes them in one prompt, and here, authentication is simply your own az login. The value is in the other two. Shaping the answer for the model, and docstrings that write down what the API will never tell you.",
+      "fr": "Tout serveur MCP utile a quatre couches. L'authentification et le transport sont banals : Claude les écrit en un seul prompt, et ici l'authentification, c'est simplement votre propre az login. La valeur est dans les deux autres. Mettre la réponse en forme pour le modèle, et des docstrings qui notent ce que l'API ne vous dira jamais."
+    },
+    {
+      "id": "loop",
+      "en": "Watch the loop. Claude creates a flow and runs it. It fails. Explain run follows the links the portal follows, and puts the upstream value next to the error: Compute batches divided by batch size, and Load settings set it to zero. Claude fixes it, runs it again, and compare runs shows the one value that changed.",
+      "fr": "Regardez la boucle. Claude crée un flux et le lance. Il échoue. Explain run suit les liens que suit le portail, et place la valeur en amont à côté de l'erreur : Compute batches divise par la taille de lot, et Load settings l'a mise à zéro. Claude corrige, relance, et compare runs montre la seule valeur qui a changé."
+    },
+    {
+      "id": "hop",
+      "en": "That second hop is the whole point. One tool call replaces a dozen clicks, and gives the model the why, not just the what.",
+      "fr": "Ce deuxième saut, c'est tout l'intérêt. Un seul appel d'outil remplace une douzaine de clics, et donne au modèle le pourquoi, pas seulement le quoi."
+    },
+    {
+      "id": "agent",
+      "en": "Then the flow becomes a tool. Copilot Studio agents are Dataverse rows, so the same login edits them. Claude creates an agent flow as a solution flow, because agents can only call those. It plugs the flow into the agent, rewrites the instructions, refusing curly braces that Copilot Studio would read as Power Fx, and publishes. Succeeded, in about thirty seconds.",
+      "fr": "Ensuite, le flux devient un outil. Les agents Copilot Studio sont des lignes Dataverse, donc la même connexion permet de les modifier. Claude crée un flux d'agent sous forme de flux de solution, car les agents ne peuvent appeler que ceux-là. Il branche le flux sur l'agent, réécrit les instructions, en refusant les accolades que Copilot Studio lirait comme du Power Fx, et publie. Réussi, en une trentaine de secondes."
+    },
+    {
+      "id": "skills",
+      "en": "Skills teach Claude whole procedures. One creates a Dataverse schema from a short JSON spec: publisher, solution, table, columns and lookups. Another exports a solution with the Power Platform CLI, unpacks it, adds a column by copying a working one, bumps the version, packs it and imports it back. Start from a colleague's solution, and use it as a base.",
+      "fr": "Les skills apprennent à Claude des procédures entières. L'une crée un schéma Dataverse à partir d'une courte spécification JSON : éditeur, solution, table, colonnes et recherches. Une autre exporte une solution avec le Power Platform CLI, la décompresse, ajoute une colonne en copiant une colonne qui fonctionne, incrémente la version, la recompresse et la réimporte. Partez de la solution d'un collègue, et utilisez-la comme base."
+    },
+    {
+      "id": "install",
+      "en": "Installing takes ten minutes. Clone the repository, create a virtual environment, install the locked requirements, and sign in with az, ideally in a separate profile for your demo tenant. Then add the servers to your MCP configuration. Everything runs locally, as you.",
+      "fr": "L'installation prend dix minutes. Clonez le dépôt, créez un environnement virtuel, installez les dépendances verrouillées, et connectez-vous avec az, idéalement dans un profil séparé pour votre tenant de démo. Ajoutez ensuite les serveurs à votre configuration MCP. Tout tourne en local, en votre nom."
+    },
+    {
+      "id": "outro",
+      "en": "Authentication and transport are commodity. What you own is the shaping and the docstrings: everything you learn the hard way, written down once. The repository is on GitHub, at OwnOptic, power-automate-mcp.",
+      "fr": "L'authentification et le transport sont banals. Ce qui vous appartient, c'est la mise en forme et les docstrings : tout ce que vous apprenez à la dure, écrit une fois pour toutes. Le dépôt est sur GitHub, chez OwnOptic, power-automate-mcp."
+    }
+  ]
+}

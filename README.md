@@ -100,6 +100,20 @@ handles, and why you might build your own.
 That entire loop is four tool calls the model chose on its own, because the tools
 tell it what they are for.
 
+### Watch it, or present it
+
+- **Three-minute explainer**, voiced, captioned, built with [Remotion](video/) from the
+  outputs of a real run: [English](docs/video/power-automate-mcp-en.mp4) |
+  [français](docs/video/power-automate-mcp-fr.mp4)
+- **A 30-minute live demo script** - install, build and debug a flow, give a Copilot
+  Studio agent a tool, skills and solutions with `pac`, write your own skill:
+  [English](docs/demo/DEMO-SCRIPT.en.md) | [français](docs/demo/DEMO-SCRIPT.fr.md)
+
+The video is generated, not recorded: `video/narration.json` holds the script in both
+languages, `python video/make_voice.py` voices it (neural voices, Swiss French for the
+French cut), and `node video/render.mjs` renders both. Change a sentence, re-run two
+commands, and the captions and timings follow.
+
 And when the error is clear but the *reason* is not:
 
 ```
@@ -116,6 +130,7 @@ And when the error is clear but the *reason* is not:
 
 ## Table of contents
 
+- [Watch it, or present it](#watch-it-or-present-it)
 - [Why this exists](#why-this-exists)
 - [The tool that justifies the exercise](#the-tool-that-justifies-the-exercise)
 - [Quick start](#quick-start) - [let Claude install it](#let-claude-install-it)

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1044" height="392" viewBox="0 0 1044 392" role="img" aria-label="The four layers of an MCP server: auth and transport are generated in one prompt; shaping and docstrings are where the value lives.">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#F26F21"/></marker><marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker><marker id="arrn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2A3B4E"/></marker></defs>
+<rect x="0" y="0" width="1044" height="392" rx="14" fill="#FFFFFF"/>
+<rect x="24" y="22" width="480" height="262" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+<rect x="540" y="22" width="480" height="262" rx="10" fill="#FFF4EC" stroke="#F26F21" stroke-width="1.5"/>
+<text x="44" y="52" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#2A3B4E" text-anchor="start">Generated in one prompt</text>
+<text x="484" y="52" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#5B6B7C" text-anchor="end">about 95 lines</text>
+<text x="560" y="52" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#F26F21" text-anchor="start">Where your value lives</text>
+<text x="1000" y="52" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F26F21" text-anchor="end">about 360 lines</text>
+<rect x="44" y="72" width="210" height="192" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+<rect x="60" y="88" width="40" height="40" rx="8" fill="#EEF2F6"/>
+<g transform="translate(68 96) scale(1.0)" fill="none" stroke="#2A3B4E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/>
+  <path d="M21 2L11 12"/>
+  <path d="M15 8l2 2"/>
+  <path d="M17 6l2 2"/></g>
+<text x="112" y="114" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2A3B4E" text-anchor="start">1. Auth</text>
+<text x="60" y="156" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">One az CLI call, plus</text>
+<text x="60" y="175" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">caching and errors</text>
+<line x1="60" y1="204" x2="238" y2="204" stroke="#CBD5E1"/>
+<text x="60" y="228" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2A3B4E" text-anchor="start">~45 lines</text>
+<text x="60" y="248" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">Claude, in one prompt</text>
+<rect x="274" y="72" width="210" height="192" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+<rect x="290" y="88" width="40" height="40" rx="8" fill="#EEF2F6"/>
+<g transform="translate(298 96) scale(1.0)" fill="none" stroke="#2A3B4E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23,4 23,10 17,10"/>
+  <polyline points="1,20 1,14 7,14"/>
+  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></g>
+<text x="342" y="114" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2A3B4E" text-anchor="start">2. Transport</text>
+<text x="290" y="156" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">Retry 401, 429 and 5xx,</text>
+<text x="290" y="175" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">follow nextLink</text>
+<line x1="290" y1="204" x2="468" y2="204" stroke="#CBD5E1"/>
+<text x="290" y="228" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2A3B4E" text-anchor="start">~50 lines</text>
+<text x="290" y="248" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5B6B7C" text-anchor="start">Claude, in one prompt</text>
+<rect x="560" y="72" width="210" height="192" rx="10" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5"/>
+<rect x="576" y="88" width="40" height="40" rx="8" fill="#F26F21"/>
+<g transform="translate(584 96) scale(1.0)" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/>
+  <rect x="14" y="3" width="7" height="7" rx="1"/>
+  <rect x="3" y="14" width="7" height="7" rx="1"/>
+  <rect x="14" y="14" width="7" height="7" rx="1"/></g>
+<text x="628" y="114" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2A3B4E" text-anchor="start">3. Shaping</text>
+<text x="576" y="156" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">About 60 API fields down</text>
+<text x="576" y="175" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">to the 4 worth reading</text>
+<line x1="576" y1="204" x2="754" y2="204" stroke="#CBD5E1"/>
+<text x="576" y="228" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#F26F21" text-anchor="start">~160 lines</text>
+<text x="576" y="248" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#F26F21" text-anchor="start">You. This is the work.</text>
+<rect x="790" y="72" width="210" height="192" rx="10" fill="#FFFFFF" stroke="#F26F21" stroke-width="1.5"/>
+<rect x="806" y="88" width="40" height="40" rx="8" fill="#F26F21"/>
+<g transform="translate(814 96) scale(1.0)" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+  <polyline points="14,2 14,8 20,8"/>
+  <line x1="8" y1="13" x2="16" y2="13"/>
+  <line x1="8" y1="17" x2="13" y2="17"/></g>
+<text x="858" y="114" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2A3B4E" text-anchor="start">4. Docstrings</text>
+<text x="806" y="156" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">What the API will never</text>
+<text x="806" y="175" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5B6B7C" text-anchor="start">tell you</text>
+<line x1="806" y1="204" x2="984" y2="204" stroke="#CBD5E1"/>
+<text x="806" y="228" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#F26F21" text-anchor="start">~200 lines</text>
+<text x="806" y="248" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#F26F21" text-anchor="start">You. This is the moat.</text>
+<path d="M254 168H270" fill="none" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrg)"/>
+<path d="M504 168H536" fill="none" stroke="#F26F21" stroke-width="2.5" marker-end="url(#arr)"/>
+<path d="M770 168H786" fill="none" stroke="#F26F21" stroke-width="2.5" marker-end="url(#arr)"/>
+<rect x="24" y="312" width="996" height="56" rx="10" fill="#2A3B4E"/>
+<rect x="24" y="312" width="6" height="56" rx="3" fill="#F26F21"/>
+<text x="48" y="336" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">The code is regenerable. The knowledge in the docstrings is the asset.</text>
+<text x="48" y="356" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#D5DEE8" text-anchor="start">Layers 1 and 2 are commodity: extras.py reuses them with one import line.</text>
+</svg>

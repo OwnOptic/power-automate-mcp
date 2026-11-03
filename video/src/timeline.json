@@ -1,0 +1,463 @@
+{
+ "fps": 30,
+ "en": [
+  {
+   "id": "title",
+   "frames": 414,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 2.642,
+     "text": "This is power-automate-mcp."
+    },
+    {
+     "start": 2.642,
+     "end": 12.889,
+     "text": "A small MCP server that runs on your own machine, and lets Claude build, run and debug your Power Automate flows, then hand them to your Copilot Studio agents."
+    }
+   ]
+  },
+  {
+   "id": "problem",
+   "frames": 563,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 3.241,
+     "text": "When a flow fails, the portal makes you click."
+    },
+    {
+     "start": 3.241,
+     "end": 9.79,
+     "text": "The run, the action, the inputs, the outputs, and then the earlier step that actually caused it."
+    },
+    {
+     "start": 9.79,
+     "end": 15.754,
+     "text": "A plain API wrapper is worse: for a connector failure, the action just says Failed."
+    },
+    {
+     "start": 15.754,
+     "end": 17.85,
+     "text": "The real error sits behind a link."
+    }
+   ]
+  },
+  {
+   "id": "layers",
+   "frames": 654,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 3.6830000000000003,
+     "text": "Every useful MCP server has four layers."
+    },
+    {
+     "start": 3.6830000000000003,
+     "end": 13.032,
+     "text": "Authentication and transport are commodity: Claude writes them in one prompt, and here, authentication is simply your own az login."
+    },
+    {
+     "start": 13.032,
+     "end": 15.064,
+     "text": "The value is in the other two."
+    },
+    {
+     "start": 15.064,
+     "end": 20.897000000000002,
+     "text": "Shaping the answer for the model, and docstrings that write down what the API will never tell you."
+    }
+   ]
+  },
+  {
+   "id": "loop",
+   "frames": 655,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 1.4180000000000001,
+     "text": "Watch the loop."
+    },
+    {
+     "start": 1.4180000000000001,
+     "end": 3.801,
+     "text": "Claude creates a flow and runs it."
+    },
+    {
+     "start": 3.801,
+     "end": 4.8549999999999995,
+     "text": "It fails."
+    },
+    {
+     "start": 4.8549999999999995,
+     "end": 15.259,
+     "text": "Explain run follows the links the portal follows, and puts the upstream value next to the error: Compute batches divided by batch size, and Load settings set it to zero."
+    },
+    {
+     "start": 15.259,
+     "end": 20.923000000000002,
+     "text": "Claude fixes it, runs it again, and compare runs shows the one value that changed."
+    }
+   ]
+  },
+  {
+   "id": "hop",
+   "frames": 277,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 2.524,
+     "text": "That second hop is the whole point."
+    },
+    {
+     "start": 2.524,
+     "end": 8.306000000000001,
+     "text": "One tool call replaces a dozen clicks, and gives the model the why, not just the what."
+    }
+   ]
+  },
+  {
+   "id": "agent",
+   "frames": 804,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 2.173,
+     "text": "Then the flow becomes a tool."
+    },
+    {
+     "start": 2.173,
+     "end": 7.173,
+     "text": "Copilot Studio agents are Dataverse rows, so the same login edits them."
+    },
+    {
+     "start": 7.173,
+     "end": 12.863,
+     "text": "Claude creates an agent flow as a solution flow, because agents can only call those."
+    },
+    {
+     "start": 12.863,
+     "end": 23.149,
+     "text": "It plugs the flow into the agent, rewrites the instructions, refusing curly braces that Copilot Studio would read as Power Fx, and publishes."
+    },
+    {
+     "start": 23.149,
+     "end": 25.871000000000002,
+     "text": "Succeeded, in about thirty seconds."
+    }
+   ]
+  },
+  {
+   "id": "skills",
+   "frames": 783,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 2.72,
+     "text": "Skills teach Claude whole procedures."
+    },
+    {
+     "start": 2.72,
+     "end": 10.923,
+     "text": "One creates a Dataverse schema from a short JSON spec: publisher, solution, table, columns and lookups."
+    },
+    {
+     "start": 10.923,
+     "end": 21.704,
+     "text": "Another exports a solution with the Power Platform CLI, unpacks it, adds a column by copying a working one, bumps the version, packs it and imports it back."
+    },
+    {
+     "start": 21.704,
+     "end": 25.181,
+     "text": "Start from a colleague's solution, and use it as a base."
+    }
+   ]
+  },
+  {
+   "id": "install",
+   "frames": 588,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 2.342,
+     "text": "Installing takes ten minutes."
+    },
+    {
+     "start": 2.342,
+     "end": 13.149,
+     "text": "Clone the repository, create a virtual environment, install the locked requirements, and sign in with az, ideally in a separate profile for your demo tenant."
+    },
+    {
+     "start": 13.149,
+     "end": 16.561,
+     "text": "Then add the servers to your MCP configuration."
+    },
+    {
+     "start": 16.561,
+     "end": 18.67,
+     "text": "Everything runs locally, as you."
+    }
+   ]
+  },
+  {
+   "id": "outro",
+   "frames": 463,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.39999999999999997,
+     "end": 3.267,
+     "text": "Authentication and transport are commodity."
+    },
+    {
+     "start": 3.267,
+     "end": 9.426,
+     "text": "What you own is the shaping and the docstrings: everything you learn the hard way, written down once."
+    },
+    {
+     "start": 9.426,
+     "end": 14.53,
+     "text": "The repository is on GitHub, at OwnOptic, power-automate-mcp."
+    }
+   ]
+  }
+ ],
+ "fr": [
+  {
+   "id": "title",
+   "frames": 429,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.603,
+     "text": "Voici power-automate-mcp."
+    },
+    {
+     "start": 3.553,
+     "end": 13.384,
+     "text": "Un petit serveur MCP qui tourne sur votre propre machine, et qui permet à Claude de construire, lancer et déboguer vos flux Power Automate, puis de les confier à vos agents Copilot Studio."
+    }
+   ]
+  },
+  {
+   "id": "problem",
+   "frames": 606,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.864,
+     "text": "Quand un flux échoue, le portail vous fait cliquer."
+    },
+    {
+     "start": 3.814,
+     "end": 10.623,
+     "text": "L'exécution, l'action, les entrées, les sorties, puis l'étape précédente qui a vraiment causé l'erreur."
+    },
+    {
+     "start": 10.623,
+     "end": 16.327,
+     "text": "Un simple accès à l'API fait pire : pour un échec de connecteur, l'action dit seulement Failed."
+    },
+    {
+     "start": 16.327,
+     "end": 19.295,
+     "text": "La vraie erreur est cachée derrière un lien."
+    }
+   ]
+  },
+  {
+   "id": "layers",
+   "frames": 633,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.654,
+     "text": "Tout serveur MCP utile a quatre couches."
+    },
+    {
+     "start": 3.604,
+     "end": 12.134,
+     "text": "L'authentification et le transport sont banals : Claude les écrit en un seul prompt, et ici l'authentification, c'est simplement votre propre az login."
+    },
+    {
+     "start": 12.134,
+     "end": 14.647,
+     "text": "La valeur est dans les deux autres."
+    },
+    {
+     "start": 14.647,
+     "end": 20.194000000000003,
+     "text": "Mettre la réponse en forme pour le modèle, et des docstrings qui notent ce que l'API ne vous dira jamais."
+    }
+   ]
+  },
+  {
+   "id": "loop",
+   "frames": 662,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 2.561,
+     "text": "Regardez la boucle."
+    },
+    {
+     "start": 2.511,
+     "end": 5.22,
+     "text": "Claude crée un flux et le lance."
+    },
+    {
+     "start": 5.22,
+     "end": 6.872,
+     "text": "Il échoue."
+    },
+    {
+     "start": 6.872,
+     "end": 15.831999999999999,
+     "text": "Explain run suit les liens que suit le portail, et place la valeur en amont à côté de l'erreur : Compute batches divise par la taille de lot, et Load settings l'a mise à zéro."
+    },
+    {
+     "start": 15.831999999999999,
+     "end": 21.157,
+     "text": "Claude corrige, relance, et compare runs montre la seule valeur qui a changé."
+    }
+   ]
+  },
+  {
+   "id": "hop",
+   "frames": 305,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.4730000000000003,
+     "text": "Ce deuxième saut, c'est tout l'intérêt."
+    },
+    {
+     "start": 3.423,
+     "end": 9.256,
+     "text": "Un seul appel d'outil remplace une douzaine de clics, et donne au modèle le pourquoi, pas seulement le quoi."
+    }
+   ]
+  },
+  {
+   "id": "agent",
+   "frames": 823,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.5380000000000003,
+     "text": "Ensuite, le flux devient un outil."
+    },
+    {
+     "start": 3.488,
+     "end": 9.399,
+     "text": "Les agents Copilot Studio sont des lignes Dataverse, donc la même connexion permet de les modifier."
+    },
+    {
+     "start": 9.399,
+     "end": 14.972,
+     "text": "Claude crée un flux d'agent sous forme de flux de solution, car les agents ne peuvent appeler que ceux-là."
+    },
+    {
+     "start": 14.972,
+     "end": 23.149,
+     "text": "Il branche le flux sur l'agent, réécrit les instructions, en refusant les accolades que Copilot Studio lirait comme du Power Fx, et publie."
+    },
+    {
+     "start": 23.149,
+     "end": 26.509,
+     "text": "Réussi, en une trentaine de secondes."
+    }
+   ]
+  },
+  {
+   "id": "skills",
+   "frames": 816,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.798,
+     "text": "Les skills apprennent à Claude des procédures entières."
+    },
+    {
+     "start": 3.748,
+     "end": 11.86,
+     "text": "L'une crée un schéma Dataverse à partir d'une courte spécification JSON : éditeur, solution, table, colonnes et recherches."
+    },
+    {
+     "start": 11.86,
+     "end": 22.069000000000003,
+     "text": "Une autre exporte une solution avec le Power Platform CLI, la décompresse, ajoute une colonne en copiant une colonne qui fonctionne, incrémente la version, la recompresse et la réimporte."
+    },
+    {
+     "start": 22.069000000000003,
+     "end": 26.288,
+     "text": "Partez de la solution d'un collègue, et utilisez-la comme base."
+    }
+   ]
+  },
+  {
+   "id": "install",
+   "frames": 624,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.121,
+     "text": "L'installation prend dix minutes."
+    },
+    {
+     "start": 3.071,
+     "end": 12.629,
+     "text": "Clonez le dépôt, créez un environnement virtuel, installez les dépendances verrouillées, et connectez-vous avec az, idéalement dans un profil séparé pour votre tenant de démo."
+    },
+    {
+     "start": 12.629,
+     "end": 16.886000000000003,
+     "text": "Ajoutez ensuite les serveurs à votre configuration MCP."
+    },
+    {
+     "start": 16.886000000000003,
+     "end": 19.867,
+     "text": "Tout tourne en local, en votre nom."
+    }
+   ]
+  },
+  {
+   "id": "outro",
+   "frames": 492,
+   "lead": 0.35,
+   "captions": [
+    {
+     "start": 0.44999999999999996,
+     "end": 3.903,
+     "text": "L'authentification et le transport sont banals."
+    },
+    {
+     "start": 3.853,
+     "end": 10.402,
+     "text": "Ce qui vous appartient, c'est la mise en forme et les docstrings : tout ce que vous apprenez à la dure, écrit une fois pour toutes."
+    },
+    {
+     "start": 10.402,
+     "end": 15.48,
+     "text": "Le dépôt est sur GitHub, chez OwnOptic, power-automate-mcp."
+    }
+   ]
+  }
+ ]
+}
