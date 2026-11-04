@@ -104,9 +104,9 @@ tell it what they are for.
 
 ### Watch it, or present it
 
-<a href="https://player.cloudinary.com/embed/?cloud_name=dapoc7ekn&profile=cld-default&public_id=portfolio/remotion/power-platform-mcp-en"><img src="https://res.cloudinary.com/dapoc7ekn/video/upload/so_4,w_960,c_scale,q_auto/portfolio/remotion/power-platform-mcp-en.jpg" alt="Play the three-minute explainer video: power-platform-mcp builds, runs and debugs Power Automate flows and builds Copilot Studio agents" width="100%"></a>
+<a href="https://player.cloudinary.com/embed/?cloud_name=dapoc7ekn&profile=cld-default&public_id=portfolio/remotion/power-platform-mcp-chat-en"><img src="https://res.cloudinary.com/dapoc7ekn/video/upload/so_4,w_960,c_scale,q_auto/portfolio/remotion/power-platform-mcp-chat-en.jpg" alt="Play the three-minute explainer video: power-platform-mcp builds, runs and debugs Power Automate flows and builds Copilot Studio agents" width="100%"></a>
 
-Click to play the three-minute explainer. En français : [la version française](https://player.cloudinary.com/embed/?cloud_name=dapoc7ekn&profile=cld-default&public_id=portfolio/remotion/power-platform-mcp-fr).
+Click to play the three-minute explainer. En français : [la version française](https://player.cloudinary.com/embed/?cloud_name=dapoc7ekn&profile=cld-default&public_id=portfolio/remotion/power-platform-mcp-chat-fr).
 
 - **Three-minute explainer**, voiced, captioned, built with [Remotion](video/) from the
   outputs of a real run: [English](docs/video/power-platform-mcp-en.mp4) |
