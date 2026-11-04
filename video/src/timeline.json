@@ -3,17 +3,17 @@
  "en": [
   {
    "id": "title",
-   "frames": 414,
+   "frames": 409,
    "lead": 0.35,
    "captions": [
     {
      "start": 0.39999999999999997,
-     "end": 2.642,
-     "text": "This is power-automate-mcp."
+     "end": 2.485,
+     "text": "This is power-platform-mcp."
     },
     {
-     "start": 2.642,
-     "end": 12.889,
+     "start": 2.485,
+     "end": 12.732999999999999,
      "text": "A small MCP server that runs on your own machine, and lets Claude build, run and debug your Power Automate flows, then hand them to your Copilot Studio agents."
     }
    ]
@@ -123,7 +123,7 @@
   },
   {
    "id": "agent",
-   "frames": 804,
+   "frames": 1007,
    "lead": 0.35,
    "captions": [
     {
@@ -150,6 +150,11 @@
      "start": 23.149,
      "end": 25.871000000000002,
      "text": "Succeeded, in about thirty seconds."
+    },
+    {
+     "start": 25.871000000000002,
+     "end": 32.642,
+     "text": "The same tools work on the new GitHub Copilot harness, where Claude writes the instructions and the skills."
     }
    ]
   },
@@ -209,7 +214,7 @@
   },
   {
    "id": "outro",
-   "frames": 463,
+   "frames": 459,
    "lead": 0.35,
    "captions": [
     {
@@ -224,8 +229,8 @@
     },
     {
      "start": 9.426,
-     "end": 14.53,
-     "text": "The repository is on GitHub, at OwnOptic, power-automate-mcp."
+     "end": 14.373,
+     "text": "The repository is on GitHub, at OwnOptic, power-platform-mcp."
     }
    ]
   }
@@ -239,11 +244,11 @@
     {
      "start": 0.44999999999999996,
      "end": 3.603,
-     "text": "Voici power-automate-mcp."
+     "text": "Voici power-platform-mcp."
     },
     {
      "start": 3.553,
-     "end": 13.384,
+     "end": 13.397,
      "text": "Un petit serveur MCP qui tourne sur votre propre machine, et qui permet à Claude de construire, lancer et déboguer vos flux Power Automate, puis de les confier à vos agents Copilot Studio."
     }
    ]
@@ -353,7 +358,7 @@
   },
   {
    "id": "agent",
-   "frames": 823,
+   "frames": 1006,
    "lead": 0.35,
    "captions": [
     {
@@ -373,13 +378,18 @@
     },
     {
      "start": 14.972,
-     "end": 23.149,
+     "end": 23.110000000000003,
      "text": "Il branche le flux sur l'agent, réécrit les instructions, en refusant les accolades que Copilot Studio lirait comme du Power Fx, et publie."
     },
     {
-     "start": 23.149,
-     "end": 26.509,
+     "start": 23.110000000000003,
+     "end": 26.496000000000002,
      "text": "Réussi, en une trentaine de secondes."
+    },
+    {
+     "start": 26.496000000000002,
+     "end": 32.616,
+     "text": "Les mêmes outils fonctionnent sur le nouveau harnais GitHub Copilot, où Claude écrit les instructions et les skills."
     }
    ]
   },
@@ -439,7 +449,7 @@
   },
   {
    "id": "outro",
-   "frames": 492,
+   "frames": 494,
    "lead": 0.35,
    "captions": [
     {
@@ -454,8 +464,8 @@
     },
     {
      "start": 10.402,
-     "end": 15.48,
-     "text": "Le dépôt est sur GitHub, chez OwnOptic, power-automate-mcp."
+     "end": 15.545,
+     "text": "Le dépôt est sur GitHub, chez OwnOptic, power-platform-mcp."
     }
    ]
   }

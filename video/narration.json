@@ -6,8 +6,8 @@
   "scenes": [
     {
       "id": "title",
-      "en": "This is power-automate-mcp. A small MCP server that runs on your own machine, and lets Claude build, run and debug your Power Automate flows, then hand them to your Copilot Studio agents.",
-      "fr": "Voici power-automate-mcp. Un petit serveur MCP qui tourne sur votre propre machine, et qui permet à Claude de construire, lancer et déboguer vos flux Power Automate, puis de les confier à vos agents Copilot Studio."
+      "en": "This is power-platform-mcp. A small MCP server that runs on your own machine, and lets Claude build, run and debug your Power Automate flows, then hand them to your Copilot Studio agents.",
+      "fr": "Voici power-platform-mcp. Un petit serveur MCP qui tourne sur votre propre machine, et qui permet à Claude de construire, lancer et déboguer vos flux Power Automate, puis de les confier à vos agents Copilot Studio."
     },
     {
       "id": "problem",
@@ -31,8 +31,8 @@
     },
     {
       "id": "agent",
-      "en": "Then the flow becomes a tool. Copilot Studio agents are Dataverse rows, so the same login edits them. Claude creates an agent flow as a solution flow, because agents can only call those. It plugs the flow into the agent, rewrites the instructions, refusing curly braces that Copilot Studio would read as Power Fx, and publishes. Succeeded, in about thirty seconds.",
-      "fr": "Ensuite, le flux devient un outil. Les agents Copilot Studio sont des lignes Dataverse, donc la même connexion permet de les modifier. Claude crée un flux d'agent sous forme de flux de solution, car les agents ne peuvent appeler que ceux-là. Il branche le flux sur l'agent, réécrit les instructions, en refusant les accolades que Copilot Studio lirait comme du Power Fx, et publie. Réussi, en une trentaine de secondes."
+      "en": "Then the flow becomes a tool. Copilot Studio agents are Dataverse rows, so the same login edits them. Claude creates an agent flow as a solution flow, because agents can only call those. It plugs the flow into the agent, rewrites the instructions, refusing curly braces that Copilot Studio would read as Power Fx, and publishes. Succeeded, in about thirty seconds. The same tools work on the new GitHub Copilot harness, where Claude writes the instructions and the skills.",
+      "fr": "Ensuite, le flux devient un outil. Les agents Copilot Studio sont des lignes Dataverse, donc la même connexion permet de les modifier. Claude crée un flux d'agent sous forme de flux de solution, car les agents ne peuvent appeler que ceux-là. Il branche le flux sur l'agent, réécrit les instructions, en refusant les accolades que Copilot Studio lirait comme du Power Fx, et publie. Réussi, en une trentaine de secondes. Les mêmes outils fonctionnent sur le nouveau harnais GitHub Copilot, où Claude écrit les instructions et les skills."
     },
     {
       "id": "skills",
@@ -46,8 +46,8 @@
     },
     {
       "id": "outro",
-      "en": "Authentication and transport are commodity. What you own is the shaping and the docstrings: everything you learn the hard way, written down once. The repository is on GitHub, at OwnOptic, power-automate-mcp.",
-      "fr": "L'authentification et le transport sont banals. Ce qui vous appartient, c'est la mise en forme et les docstrings : tout ce que vous apprenez à la dure, écrit une fois pour toutes. Le dépôt est sur GitHub, chez OwnOptic, power-automate-mcp."
+      "en": "Authentication and transport are commodity. What you own is the shaping and the docstrings: everything you learn the hard way, written down once. The repository is on GitHub, at OwnOptic, power-platform-mcp.",
+      "fr": "L'authentification et le transport sont banals. Ce qui vous appartient, c'est la mise en forme et les docstrings : tout ce que vous apprenez à la dure, écrit une fois pour toutes. Le dépôt est sur GitHub, chez OwnOptic, power-platform-mcp."
     }
   ]
 }

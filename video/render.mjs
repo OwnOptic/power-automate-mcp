@@ -26,7 +26,7 @@ for (const lang of langs.length ? langs : ["en", "fr"]) {
       from += s.frames;
     }
   } else {
-    const out = path.join(here, "..", "docs", "video", `power-automate-mcp-${lang}.mp4`);
+    const out = path.join(here, "..", "docs", "video", `power-platform-mcp-${lang}.mp4`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     run(["render", "src/index.ts", `Explainer-${lang}`, out, "--codec=h264", "--crf=26", "--audio-bitrate=96k"]);
     console.log(out);

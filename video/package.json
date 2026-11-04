@@ -1,8 +1,8 @@
 {
-  "name": "power-automate-mcp-video",
+  "name": "power-platform-mcp-video",
   "version": "1.0.0",
   "private": true,
-  "description": "The explainer videos for power-automate-mcp, in English and French, rendered with Remotion.",
+  "description": "The explainer videos for power-platform-mcp, in English and French, rendered with Remotion.",
   "scripts": {
     "voice": "python make_voice.py",
     "studio": "remotion studio src/index.ts",

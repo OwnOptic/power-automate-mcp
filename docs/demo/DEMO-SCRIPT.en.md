@@ -1,7 +1,7 @@
 # Demo script: Claude builds flows, fixes them, and teaches an agent to use them
 
 **Length:** 30 minutes, live. **Audience:** colleagues who will install it afterwards.
-**Video version:** [`docs/video/power-automate-mcp-en.mp4`](../video/power-automate-mcp-en.mp4) - play it if the tenant misbehaves.
+**Video version:** [`docs/video/power-platform-mcp-en.mp4`](../video/power-platform-mcp-en.mp4) - play it if the tenant misbehaves.
 **French version:** [`DEMO-SCRIPT.fr.md`](DEMO-SCRIPT.fr.md).
 
 The sentence the demo has to land:
@@ -30,8 +30,8 @@ environment **with Dataverse** (Copilot Studio agents and solutions live there).
    A timestamp means it works.
 2. **The repo**, in a folder you will demo from:
    ```powershell
-   git clone https://github.com/OwnOptic/power-automate-mcp.git
-   cd power-automate-mcp
+   git clone https://github.com/OwnOptic/power-platform-mcp.git
+   cd power-platform-mcp
    python -m venv .venv
    .venv\Scripts\python -m pip install -r requirements.txt
    ```
@@ -46,9 +46,9 @@ environment **with Dataverse** (Copilot Studio agents and solutions live there).
    ```json
    {
      "mcpServers": {
-       "power-automate":         { "command": "C:/demo/power-automate-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-automate-mcp/server.py"],         "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
-       "power-automate-extras":  { "command": "C:/demo/power-automate-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-automate-mcp/extras.py"],         "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
-       "power-automate-copilot": { "command": "C:/demo/power-automate-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-automate-mcp/copilot_studio.py"], "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
+       "power-platform":         { "command": "C:/demo/power-platform-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-platform-mcp/server.py"],         "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
+       "power-platform-extras":  { "command": "C:/demo/power-platform-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-platform-mcp/extras.py"],         "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
+       "power-platform-copilot": { "command": "C:/demo/power-platform-mcp/.venv/Scripts/python.exe", "args": ["C:/demo/power-platform-mcp/copilot_studio.py"], "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" } },
        "microsoft-learn": { "type": "http", "url": "https://learn.microsoft.com/api/mcp" }
      }
    }
@@ -90,9 +90,9 @@ action, inputs, outputs, then the earlier action to find the value that caused i
 
 Four servers, three of them this repo, all local, all running as **you**:
 
-- `power-automate` - ten tools: build, run, diagnose.
-- `power-automate-extras` - environments, start and stop, cancel, resubmit, solutions.
-- `power-automate-copilot` - Copilot Studio agents.
+- `power-platform` - ten tools: build, run, diagnose.
+- `power-platform-extras` - environments, start and stop, cancel, resubmit, solutions.
+- `power-platform-copilot` - Copilot Studio agents, on both harnesses: classic topics, or the new GitHub Copilot harness with its skills.
 - `microsoft-learn` - Microsoft's own docs server, so Claude looks connector actions up
   instead of guessing.
 
@@ -104,7 +104,7 @@ Show the install in four lines (pre-flight steps 2 to 4). Say it plainly: clone,
 venv, `pip install -r requirements.txt`, add the `.mcp.json` block, restart Claude Code.
 **Do not install live** - it is already installed; you are showing how short it is.
 
-### 6:00 - 11:00 Beat 1: build, break, explain (`power-automate`)
+### 6:00 - 11:00 Beat 1: build, break, explain (`power-platform`)
 
 **Prompt:**
 ```
@@ -139,7 +139,7 @@ change `batch_size 0 -> 4`.
 **Fallback:** a 400 on create - read it aloud. A 400 the docstring predicted is a better
 demo than a clean 201.
 
-### 11:00 - 18:00 Beat 2: give the agent a tool (`power-automate-copilot`)
+### 11:00 - 18:00 Beat 2: give the agent a tool (`power-platform-copilot`)
 
 **Screen:** Copilot Studio, Store Helper. Show it is empty: no instructions, no tools.
 
@@ -238,14 +238,14 @@ New session, then: `Run a smoke test of my setup.` - it loads the skill on its o
 2. Agents call **solution** flows. Build them as such, describe the tool well, publish.
 3. Skills turn a procedure into something anyone on the team can ask for.
 
-Repo: **github.com/OwnOptic/power-automate-mcp** - README, "The short version": ten
+Repo: **github.com/OwnOptic/power-platform-mcp** - README, "The short version": ten
 minutes to install. Then questions.
 
 ---
 
 ## Reset between rehearsals
 
-In Claude Code, with `power-automate-extras` connected:
+In Claude Code, with `power-platform-extras` connected:
 ```
 Delete every flow whose name starts with "DEMO - ", with confirm.
 ```

@@ -161,11 +161,11 @@ const Captions: React.FC<{ captions: Caption[] }> = ({ captions }) => {
 
 const Title: React.FC<{ lang: Lang }> = ({ lang }) => {
   const p = useEnter(5);
-  const chips = ["server.py  10", "extras.py  9", "copilot_studio.py  6", "+ microsoft-learn"];
+  const chips = ["server.py  10", "extras.py  9", "copilot_studio.py  9", "+ microsoft-learn"];
   return (
     <AbsoluteFill style={{ background: NAVY, justifyContent: "center", padding: "0 160px" }}>
       <div style={{ width: 140, height: 10, background: ORANGE, borderRadius: 5, marginBottom: 40, transform: `scaleX(${p})`, transformOrigin: "left" }} />
-      <div style={{ fontFamily: MONO, fontSize: 104, fontWeight: 700, color: "#FFFFFF", opacity: p }}>power-automate-mcp</div>
+      <div style={{ fontFamily: MONO, fontSize: 104, fontWeight: 700, color: "#FFFFFF", opacity: p }}>power-platform-mcp</div>
       <div style={{ fontFamily: SANS, fontSize: 40, color: "#D5DEE8", marginTop: 26, maxWidth: 1400, lineHeight: 1.35, opacity: useEnter(18) }}>{T[lang].subtitle}</div>
       <div style={{ display: "flex", gap: 20, marginTop: 56 }}>
         {chips.map((c, i) => {
@@ -253,7 +253,7 @@ const Agent: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => {
   return (
     <AbsoluteFill style={{ background: BG }}>
       <Heading>{T[lang].agentTitle}</Heading>
-      <Terminal frames={frames} title="power-automate-copilot" style={{ position: "absolute", left: 110, width: 1080, top: 170, bottom: 190 }} lines={[
+      <Terminal frames={frames} title="power-platform-copilot" style={{ position: "absolute", left: 110, width: 1080, top: 170, bottom: 190 }} lines={[
         { at: 0.02, tone: "cmd", text: "list_agents  ->  get_agent(Store Helper)" },
         { at: 0.07, tone: "out", text: "instructions: (empty)   tools: none" },
         { at: 0.2, tone: "cmd", text: 'create_agent_flow("DEMO - Order status")' },
@@ -316,7 +316,7 @@ const Install: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => 
   <AbsoluteFill style={{ background: BG }}>
     <Heading>{T[lang].install}</Heading>
     <Terminal frames={frames} title="PowerShell" style={{ position: "absolute", left: 110, width: 900, top: 170, bottom: 190 }} lines={[
-      { at: 0.04, tone: "cmd", text: "git clone https://github.com/OwnOptic/power-automate-mcp" },
+      { at: 0.04, tone: "cmd", text: "git clone https://github.com/OwnOptic/power-platform-mcp" },
       { at: 0.14, tone: "cmd", text: "python -m venv .venv" },
       { at: 0.22, tone: "cmd", text: ".venv\\Scripts\\pip install -r requirements.txt" },
       { at: 0.36, tone: "cmd", text: '$env:AZURE_CONFIG_DIR = "$HOME\\.azure-demo"' },
@@ -325,12 +325,12 @@ const Install: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => 
     ]} />
     <Card delay={frames * 0.6} style={{ position: "absolute", right: 110, width: 780, top: 170, padding: "28px 34px" }}>
       <div style={{ fontFamily: MONO, fontSize: 22, color: MUTED, marginBottom: 14 }}>{T[lang].config}</div>
-      <pre style={{ fontFamily: MONO, fontSize: 22, lineHeight: 1.55, color: NAVY, margin: 0 }}>{`"power-automate":
+      <pre style={{ fontFamily: MONO, fontSize: 22, lineHeight: 1.55, color: NAVY, margin: 0 }}>{`"power-platform":
   { "command": "python",
     "args": ["server.py"],
     "env": { "AZURE_CONFIG_DIR": ... } },
-"power-automate-extras":  { ... },
-"power-automate-copilot": { ... },
+"power-platform-extras":  { ... },
+"power-platform-copilot": { ... },
 "microsoft-learn":
   { "type": "http", "url": ... }`}</pre>
     </Card>
@@ -348,7 +348,7 @@ const Outro: React.FC<{ lang: Lang }> = ({ lang }) => (
         </div>
       );
     })}
-    <div style={{ fontFamily: MONO, fontSize: 44, color: ORANGE, marginTop: 50, opacity: useEnter(150) }}>github.com/OwnOptic/power-automate-mcp</div>
+    <div style={{ fontFamily: MONO, fontSize: 44, color: ORANGE, marginTop: 50, opacity: useEnter(150) }}>github.com/OwnOptic/power-platform-mcp</div>
   </AbsoluteFill>
 );
 
