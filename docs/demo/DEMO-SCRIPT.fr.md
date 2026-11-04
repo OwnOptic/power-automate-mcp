@@ -57,6 +57,9 @@ vivent).
 5. **Un agent à former.** Dans Copilot Studio, dans cet environnement, créez un agent nommé
    **Store Helper** (vide, orchestration générative activée, sans instructions). Publiez-le
    une fois. C'est la seule chose que les outils ne créent pas : un agent naît dans le portail.
+   Puis un second avec la **nouvelle expérience d'agent** (harnais GitHub Copilot), nommé
+   **Store Helper Next**, vide, non publié. Laissez les accès Work IQ qu'il reçoit à la
+   création : la séquence 2b les retire.
 6. **pac pour la partie solutions.** `pac auth create --name demo --environment <url de l'org>`
    (connexion dans le navigateur). Puis `pac auth list` et **notez quel profil est actif** -
    resélectionnez-le après la démo.
@@ -66,7 +69,7 @@ vivent).
 
 - [ ] Nouvelle session Claude Code **ouverte dans le dossier du dépôt**. `/mcp` montre quatre serveurs, tous connectés.
 - [ ] La commande `az account get-access-token ...` de l'étape 1 affiche toujours une date (l'accès conditionnel peut faire expirer la session ; en cas d'AADSTS70043, `az login` maintenant, pas sur scène).
-- [ ] Onglet 1 : make.powerautomate.com sur l'environnement de démo. Onglet 2 : Copilot Studio, Store Helper, volet de test ouvert.
+- [ ] Onglet 1 : make.powerautomate.com sur l'environnement de démo. Onglet 2 : Copilot Studio, Store Helper, volet de test ouvert. Onglet 3 : Copilot Studio, Store Helper Next.
 - [ ] `pac auth select --name demo`.
 - [ ] Police agrandie dans le terminal et le navigateur. Notifications coupées. Teams fermé.
 
@@ -142,7 +145,7 @@ de sortie `batch_size 0 -> 4`.
 **Plan B :** un 400 à la création - lisez-le à voix haute. Un 400 que la docstring
 avait prévu fait une meilleure démo qu'un 201 propre.
 
-### 11:00 - 18:00 Séquence 2 : donner un outil à l'agent (`power-platform-copilot`)
+### 11:00 - 16:00 Séquence 2 : donner un outil à l'agent (`power-platform-copilot`)
 
 **Écran :** Copilot Studio, Store Helper. Montrez qu'il est vide : pas d'instructions, pas d'outils.
 
@@ -184,7 +187,63 @@ Montre-moi les exécutions du flux de statut de commande et explique la dernièr
 `Rends la description de l'outil plus explicite sur les numéros de commande et republie.`
 C'est la leçon honnête : la description, c'est le prompt.
 
-### 18:00 - 25:00 Séquence 3 : skills, schémas et solutions (`pac`)
+### 16:00 - 20:00 Séquence 2b : le même travail sur le nouveau harnais (`power-platform-copilot`)
+
+**Écran :** Copilot Studio, Store Helper Next. Montrez la barre d'adresse : `.../agents/<id>`,
+pas `.../bots/<id>`.
+
+> « Copilot Studio construit désormais les agents sur deux moteurs. Celui-ci n'a pas de
+> rubriques, il a des skills, et il range l'agent ailleurs. Mêmes outils, même connexion. »
+
+**Prompt :**
+```
+Regarde mon agent Store Helper Next. Sur quel harnais est-il, et qu'a-t-il : instructions, skills, connaissances, accès Work IQ ?
+```
+
+Attendu : `get_agent` indique le harnais `github_copilot`, ni instructions ni skills, et
+souvent six capacités Work IQ en écriture (messagerie, agenda, fichiers, Teams, personnes,
+sites).
+
+> « Lisez cette liste à voix haute : un assistant de commandes qui peut écrire mes mails.
+> Personne ne l'a demandé. »
+
+**Prompt :**
+```
+Retire les capacités Work IQ dont il n'a pas besoin pour répondre sur les commandes. Montre-moi d'abord ce que tu retirerais.
+```
+
+Attendu : `remove_agent_component` en essai à blanc d'abord, les données affichées comme
+sauvegarde, puis le retrait une fois que vous dites oui.
+
+**Prompt :**
+```
+Écris ses instructions pour qu'il réponde sur les commandes dans la langue de la question, et ajoute un skill order-status qui dit comment répondre quand on demande où en est une commande : statut, date prévue, transporteur, un court paragraphe.
+```
+
+Attendu : `update_agent_instructions` (sur ce harnais, il écrit la configuration de
+l'agent : il n'y a pas de composant `gpt.default`) puis `upsert_agent_skill`.
+
+**Écran :** Copilot Studio, actualisez l'agent : les instructions et le skill sont là.
+
+> « Un piège : ne gardez jamais un onglet du concepteur ouvert pendant que Claude écrit.
+> Son prochain enregistrement remet l'ancienne version. »
+
+**Prompt :**
+```
+Exporte Store Helper Next comme si je devais le reconstruire dans un autre environnement, et dis-moi ce que l'export n'emporte pas.
+```
+
+Attendu : `export_agent`, chaque composant avec son type, et les manques honnêtes (les
+fichiers de connaissances chargés n'ont pas leur contenu dans Dataverse, et les suggestions
+de prompts n'y sont pas stockées).
+
+**Ne discutez pas avec lui sur scène.** Ce harnais facture des Copilot Credits dès le
+premier message de test ; l'intérêt de la séquence est la construction, pas la conversation.
+
+**Plan B :** l'agent n'a aucune capacité Work IQ : sautez ce prompt et dites pourquoi il
+vaut la peine de vérifier sur chaque nouvel agent.
+
+### 20:00 - 25:00 Séquence 3 : skills, schémas et solutions (`pac`)
 
 **Écran :** `.claude/skills/`. Ouvrez `solution-from-base/SKILL.md`.
 
@@ -254,7 +313,8 @@ Dans Claude Code, avec `power-platform-extras` connecté :
 Supprime tous les flux dont le nom commence par "DEMO - ", avec confirmation.
 ```
 Dans Copilot Studio : Store Helper, Outils, supprimer « Get order status » ; vider les
-instructions ; publier. La solution PAMCPDemo : supprimez-la depuis make.powerapps.com >
+instructions ; publier. Store Helper Next : supprimez-le, ou demandez à Claude de retirer le
+skill order-status et de vider les instructions. La solution PAMCPDemo : supprimez-la depuis make.powerapps.com >
 Solutions si vous voulez un environnement propre (la table part avec), ou gardez-la -
 relancer l'étape du schéma indique alors que tout existe déjà, ce qui fait aussi une bonne
 démo. Enfin : `pac auth select` pour revenir à votre profil habituel.
@@ -273,7 +333,12 @@ suivent jamais le lien vers les sorties. Et votre propre serveur porte vos propr
 dans ses docstrings.
 
 **« Il peut aussi créer l'agent ? »** Pas d'ici : un agent se crée dans Copilot Studio.
-Tout ce qui suit - instructions, outils, publication - il le fait.
+Tout ce qui suit - instructions, outils, skills, publication - il le fait, sur les deux harnais.
+
+**« Quel harnais choisir ? »** Le standard pour un assistant connu et cadré par des règles ;
+il est facturé à la publication. Le harnais GitHub Copilot pour un vrai travail en
+plusieurs étapes, avec skills et fichiers ; il facture des Copilot Credits dès le premier
+test, et un agent ne peut pas passer d'un harnais à l'autre.
 
 **« Il peut créer des connexions ? »** Non, et rien d'honnête ne le peut : une connexion est
 une connexion OAuth. Une fois dans le portail, puis `bind_connection` pour toujours.

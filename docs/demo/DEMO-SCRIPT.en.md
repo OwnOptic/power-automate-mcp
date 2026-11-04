@@ -56,6 +56,9 @@ environment **with Dataverse** (Copilot Studio agents and solutions live there).
 5. **An agent to teach.** In Copilot Studio, in that environment, create an agent called
    **Store Helper** (blank, generative orchestration on, instructions empty). Publish it
    once. This is the one thing the tools do not create: an agent is born in the portal.
+   Then a second one with the **new agent experience** (GitHub Copilot harness), called
+   **Store Helper Next**, empty, not published. Leave whatever Work IQ access it is
+   created with: Beat 2b removes it.
 6. **pac for the solutions part.** `pac auth create --name demo --environment <org url>`
    (sign in in the browser). Then `pac auth list` and **note which profile is active** -
    select it back after the demo.
@@ -65,7 +68,7 @@ environment **with Dataverse** (Copilot Studio agents and solutions live there).
 
 - [ ] Fresh Claude Code session **opened in the repo folder**. `/mcp` shows four servers, all connected.
 - [ ] `az account get-access-token ...` from step 1 still prints a timestamp (Conditional Access can expire the CLI session; if you see AADSTS70043, `az login` now, not on stage).
-- [ ] Browser tab 1: make.powerautomate.com on the demo environment. Tab 2: Copilot Studio, Store Helper, test pane open.
+- [ ] Browser tab 1: make.powerautomate.com on the demo environment. Tab 2: Copilot Studio, Store Helper, test pane open. Tab 3: Copilot Studio, Store Helper Next.
 - [ ] `pac auth select --name demo`.
 - [ ] Font size up in terminal and browser. Notifications off. Teams closed.
 
@@ -139,7 +142,7 @@ change `batch_size 0 -> 4`.
 **Fallback:** a 400 on create - read it aloud. A 400 the docstring predicted is a better
 demo than a clean 201.
 
-### 11:00 - 18:00 Beat 2: give the agent a tool (`power-platform-copilot`)
+### 11:00 - 16:00 Beat 2: give the agent a tool (`power-platform-copilot`)
 
 **Screen:** Copilot Studio, Store Helper. Show it is empty: no instructions, no tools.
 
@@ -181,7 +184,60 @@ Show me the runs of the order status flow and explain the last one.
 `Make the tool description more explicit about order numbers and publish again.`
 That is the honest lesson: the description is the prompt.
 
-### 18:00 - 25:00 Beat 3: skills, schemas and solutions (`pac`)
+### 16:00 - 20:00 Beat 2b: the same work on the new harness (`power-platform-copilot`)
+
+**Screen:** Copilot Studio, Store Helper Next. Point at the address bar: `.../agents/<id>`,
+not `.../bots/<id>`.
+
+> "Copilot Studio now builds agents on two runtimes. This one has no topics, it has
+> skills, and it stores the agent somewhere else entirely. Same tools, same login."
+
+**Prompt:**
+```
+Look at my Store Helper Next agent. Which harness is it on, and what does it have: instructions, skills, knowledge, Work IQ access?
+```
+
+Expect `get_agent`: harness `github_copilot`, no instructions, no skills, and often six
+Work IQ capabilities at Write access (mail, calendar, files, Teams, people, sites).
+
+> "Read that list out loud: an order assistant that can write my mail. Nobody asked for that."
+
+**Prompt:**
+```
+Remove the Work IQ capabilities it does not need to answer order questions. Show me what you would remove first.
+```
+
+Expect `remove_agent_component` as a dry run first, the data shown as the backup, then
+the removal once you say yes.
+
+**Prompt:**
+```
+Write its instructions so it answers order questions in the language of the question, and add a skill called order-status that says how to answer when someone asks where an order is: status, expected date, carrier, one short paragraph.
+```
+
+Expect `update_agent_instructions` (on this harness it writes the agent's configuration:
+there is no `gpt.default` component) and `upsert_agent_skill`.
+
+**Screen:** Copilot Studio, refresh the agent: the instructions and the skill are there.
+
+> "One trap: never keep a designer tab open while Claude writes. Its next save puts the
+> old copy back."
+
+**Prompt:**
+```
+Export Store Helper Next as if I had to rebuild it in another environment, and tell me what the export does not carry.
+```
+
+Expect `export_agent`: every component with its kind, and the honest gaps (uploaded
+knowledge files have no bytes in Dataverse, and suggested prompts are not stored there).
+
+**Do not chat with it on stage.** This harness bills Copilot Credits from the first test
+message; the point of the beat is the build, not the conversation.
+
+**Fallback:** the agent has no Work IQ capabilities: skip that prompt and say why it is
+worth checking on every new agent.
+
+### 20:00 - 25:00 Beat 3: skills, schemas and solutions (`pac`)
 
 **Screen:** `.claude/skills/`. Open `solution-from-base/SKILL.md`.
 
@@ -250,7 +306,8 @@ In Claude Code, with `power-platform-extras` connected:
 Delete every flow whose name starts with "DEMO - ", with confirm.
 ```
 In Copilot Studio: Store Helper, Tools, delete "Get order status"; clear the
-instructions; publish. The PAMCPDemo solution: delete it from make.powerapps.com >
+instructions; publish. Store Helper Next: delete it, or ask Claude to remove the order-status
+skill and empty the instructions. The PAMCPDemo solution: delete it from make.powerapps.com >
 Solutions if you want a clean environment (the table goes with it), or keep it - re-running
 the schema step then reports everything as existing, which is also a fine demo.
 Finally: `pac auth select` back to your everyday profile.
@@ -268,7 +325,12 @@ broader. Its run tools tell you where it broke, not why: they never follow the o
 link. And your own server carries your own lessons in its docstrings.
 
 **"Can it create the agent too?"** Not from here: an agent is created in Copilot Studio.
-Everything after that - instructions, tools, publish - it does.
+Everything after that - instructions, tools, skills, publish - it does, on both harnesses.
+
+**"Which harness should we use?"** The standard one for a well-understood, rule-based
+assistant; it is billed at publish. The GitHub Copilot harness for real multi-step work,
+skills and files; it bills Copilot Credits from the first test, and an agent cannot move
+from one harness to the other.
 
 **"Can it create connections?"** No, and nothing honest can: a connection is an OAuth
 sign-in. Portal once, then `bind_connection` forever.
