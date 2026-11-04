@@ -42,7 +42,7 @@ jobs:
         run: |
           python -c "import asyncio, server; n = len(asyncio.run(server.mcp.list_tools())); print('server.py', n); assert n == 10"
           python -c "import asyncio, extras; n = len(asyncio.run(extras.mcp.list_tools())); print('extras.py', n); assert n == 9"
-          python -c "import asyncio, copilot_studio; n = len(asyncio.run(copilot_studio.mcp.list_tools())); print('copilot_studio.py', n); assert n == 6"
+          python -c "import asyncio, copilot_studio; n = len(asyncio.run(copilot_studio.mcp.list_tools())); print('copilot_studio.py', n); assert n == 9"
 
       - name: Tests
         run: python -m pytest -q
