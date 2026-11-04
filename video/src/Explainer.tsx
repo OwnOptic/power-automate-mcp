@@ -111,30 +111,63 @@ const Heading: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
-type Line = { at: number; text: string; tone?: "cmd" | "ok" | "err" | "out" | "dim" };
+// A chat window: the user asks in plain words, the assistant calls tools (one compact line
+// each, result coloured) and answers. Messages appear at `at` (a fraction of the scene),
+// so the beats land on the narration in both languages; older ones scroll up and out.
+type Msg =
+  | { at: number; kind: "user" | "assistant"; text: string }
+  | { at: number; kind: "tool"; tool: string; detail?: string; result?: string; tone?: "ok" | "err" | "out" };
 
-// A terminal that types its lines as the scene plays. `at` is a fraction of the scene,
-// so the same beats land on the narration in both languages.
-const Terminal: React.FC<{ lines: Line[]; frames: number; style?: React.CSSProperties; title?: string }> = ({ lines, frames, style, title }) => {
-  const frame = useCurrentFrame();
-  const colors = { cmd: "#FFFFFF", ok: "#7FE0A8", err: "#FF8A80", out: "#C9D6E3", dim: "#7F93A8" };
-  return (
-    <Card style={{ background: "#1B2633", border: "1.5px solid #2E3E50", padding: "26px 34px", ...style }}>
-      <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center" }}>
-        {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: 14, height: 14, borderRadius: 7, background: c }} />)}
-        <div style={{ fontFamily: SANS, color: "#7F93A8", fontSize: 20, marginLeft: 14 }}>{title ?? "Claude Code"}</div>
+const Bubble: React.FC<{ msg: Msg; start: number; you: string }> = ({ msg, start, you }) => {
+  const p = useEnter(start);
+  const enter = { opacity: p, transform: `translateY(${(1 - p) * 18}px)` };
+  if (msg.kind === "tool") {
+    const color = { ok: GREEN, err: RED, out: MUTED }[msg.tone ?? "out"];
+    return (
+      <div style={{ ...enter, alignSelf: "flex-start", maxWidth: "92%", display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap",
+                    fontFamily: MONO, fontSize: 21, color: NAVY, background: "#EEF2F6", border: "1.5px solid #DDE3EA",
+                    borderRadius: 12, padding: "10px 16px", marginLeft: 58 }}>
+        <span style={{ color: ORANGE, fontWeight: 700 }}>⚙ {msg.tool}</span>
+        {msg.detail ? <span style={{ color: MUTED }}>{msg.detail}</span> : null}
+        {msg.result ? <span style={{ color, fontWeight: 600 }}>→ {msg.result}</span> : null}
       </div>
-      {lines.map((l, i) => {
-        const start = l.at * frames;
-        const shown = Math.max(0, Math.floor((frame - start) * 2.2));
-        if (frame < start) return null;
-        const text = l.text.slice(0, shown);
-        return (
-          <div key={i} style={{ fontFamily: MONO, fontSize: 25, lineHeight: 1.55, color: colors[l.tone ?? "out"], whiteSpace: "pre-wrap" }}>
-            {l.tone === "cmd" ? <span style={{ color: ORANGE }}>{"> "}</span> : "  "}{text}
-          </div>
-        );
-      })}
+    );
+  }
+  const isUser = msg.kind === "user";
+  return (
+    <div style={{ ...enter, alignSelf: isUser ? "flex-end" : "flex-start", display: "flex", gap: 14, maxWidth: "86%",
+                  flexDirection: isUser ? "row-reverse" : "row", alignItems: "flex-start" }}>
+      <div style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: SANS, fontWeight: 700, fontSize: 18, color: "#FFFFFF", background: isUser ? MUTED : ORANGE }}>
+        {isUser ? you.slice(0, 1) : "C"}
+      </div>
+      <div style={{ fontFamily: SANS, fontSize: 25, lineHeight: 1.45, color: isUser ? "#FFFFFF" : NAVY,
+                    background: isUser ? NAVY : "#FFFFFF", border: isUser ? "none" : "1.5px solid #DDE3EA",
+                    borderRadius: isUser ? "20px 6px 20px 20px" : "6px 20px 20px 20px", padding: "14px 20px" }}>{msg.text}</div>
+    </div>
+  );
+};
+
+const Chat: React.FC<{ msgs: Msg[]; frames: number; lang: Lang; style?: React.CSSProperties }> = ({ msgs, frames, lang, style }) => {
+  const frame = useCurrentFrame();
+  const visible = msgs.filter((m) => frame >= m.at * frames);
+  const you = lang === "fr" ? "Vous" : "You";
+  return (
+    <Card style={{ display: "flex", flexDirection: "column", overflow: "hidden", ...style }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: "1.5px solid #DDE3EA", background: "#FAFBFC" }}>
+        <div style={{ fontFamily: SANS, fontSize: 22, fontWeight: 700, color: NAVY }}>Chat</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SANS, fontSize: 19, color: GREEN, background: "#E8F5EE",
+                      padding: "5px 14px", borderRadius: 20 }}>
+          <div style={{ width: 9, height: 9, borderRadius: 5, background: GREEN }} />
+          {lang === "fr" ? "power-platform-mcp connecté" : "power-platform-mcp connected"}
+        </div>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 14, padding: "20px 26px", overflow: "hidden",
+                    WebkitMaskImage: "linear-gradient(to bottom, transparent 0, black 70px)", maskImage: "linear-gradient(to bottom, transparent 0, black 70px)" }}>
+        {visible.map((m, i) => <Bubble key={i} msg={m} start={m.at * frames} you={you} />)}
+      </div>
+      <div style={{ margin: "0 22px 18px", padding: "14px 20px", border: "1.5px solid #DDE3EA", borderRadius: 14, fontFamily: SANS,
+                    fontSize: 21, color: "#9AA8B6" }}>{lang === "fr" ? "Écrivez un message" : "Type a message"}</div>
     </Card>
   );
 };
@@ -227,47 +260,77 @@ const Diagram: React.FC<{ src: string }> = ({ src }) => {
   );
 };
 
+const LOOP: Record<Lang, Msg[]> = {
+  en: [
+    { at: 0.02, kind: "user", text: "Create a flow from demo-flow.json and run it." },
+    { at: 0.06, kind: "tool", tool: "create_flow", detail: "DEMO - nightly batch", result: "Started, 2.3 s", tone: "ok" },
+    { at: 0.11, kind: "tool", tool: "run_flow", detail: "then list_runs", result: "Failed", tone: "err" },
+    { at: 0.17, kind: "user", text: "It failed. What happened?" },
+    { at: 0.22, kind: "tool", tool: "explain_run", result: "Compute_batches: divide by zero in 'div'", tone: "err" },
+    { at: 0.29, kind: "assistant", text: "Compute_batches divides by batch_size, and Load_settings set it to 0: region westeurope, retries 3, batch_size 0. That upstream value is the cause." },
+    { at: 0.5, kind: "user", text: "Fix it, run it again, and compare." },
+    { at: 0.55, kind: "tool", tool: "update_flow_definition", detail: "batch_size 0 → 4, previous kept", result: "updated", tone: "ok" },
+    { at: 0.62, kind: "tool", tool: "run_flow", result: "Succeeded", tone: "ok" },
+    { at: 0.71, kind: "tool", tool: "compare_runs", detail: "failed vs succeeded", result: "diverged at Compute_batches", tone: "out" },
+    { at: 0.79, kind: "assistant", text: "Fixed. The only output that changed is Load_settings batch_size: 0 when it failed, 4 when it worked." },
+  ],
+  fr: [
+    { at: 0.02, kind: "user", text: "Crée un flux à partir de demo-flow.json et lance-le." },
+    { at: 0.06, kind: "tool", tool: "create_flow", detail: "DEMO - nightly batch", result: "démarré, 2,3 s", tone: "ok" },
+    { at: 0.11, kind: "tool", tool: "run_flow", detail: "puis list_runs", result: "Failed", tone: "err" },
+    { at: 0.17, kind: "user", text: "Il a échoué. Que s'est-il passé ?" },
+    { at: 0.22, kind: "tool", tool: "explain_run", result: "Compute_batches : division par zéro dans 'div'", tone: "err" },
+    { at: 0.29, kind: "assistant", text: "Compute_batches divise par batch_size, et Load_settings l'a mise à 0 : region westeurope, retries 3, batch_size 0. C'est cette valeur en amont qui cause l'erreur." },
+    { at: 0.5, kind: "user", text: "Corrige, relance, et compare." },
+    { at: 0.55, kind: "tool", tool: "update_flow_definition", detail: "batch_size 0 → 4, version précédente gardée", result: "mis à jour", tone: "ok" },
+    { at: 0.62, kind: "tool", tool: "run_flow", result: "Succeeded", tone: "ok" },
+    { at: 0.71, kind: "tool", tool: "compare_runs", detail: "échec contre réussite", result: "divergence à Compute_batches", tone: "out" },
+    { at: 0.79, kind: "assistant", text: "Corrigé. La seule sortie qui change est batch_size de Load_settings : 0 en échec, 4 en réussite." },
+  ],
+};
+
 const Loop: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => (
   <AbsoluteFill style={{ background: BG }}>
     <Heading>{T[lang].loop}</Heading>
-    <Terminal frames={frames} style={{ position: "absolute", left: 110, right: 110, top: 170, bottom: 190 }} lines={[
-      { at: 0.03, tone: "cmd", text: 'create_flow("DEMO - nightly batch", demo-flow.json)' },
-      { at: 0.08, tone: "ok", text: "Started   2.3 s" },
-      { at: 0.12, tone: "cmd", text: "run_flow  ->  list_runs" },
-      { at: 0.16, tone: "err", text: "Failed" },
-      { at: 0.22, tone: "cmd", text: "explain_run" },
-      { at: 0.27, tone: "err", text: "Compute_batches: Attempt to divide an integral or decimal value by zero in function 'div'." },
-      { at: 0.38, tone: "out", text: 'Load_settings emitted {"region": "westeurope", "retries": 3, "batch_size": 0}' },
-      { at: 0.55, tone: "cmd", text: "update_flow_definition   batch_size 0 -> 4   (previous definition kept)" },
-      { at: 0.63, tone: "cmd", text: "run_flow  ->  list_runs" },
-      { at: 0.67, tone: "ok", text: "Succeeded" },
-      { at: 0.74, tone: "cmd", text: "compare_runs(failed, succeeded)" },
-      { at: 0.79, tone: "out", text: "diverged_at: Compute_batches" },
-      { at: 0.84, tone: "ok", text: "output_changes: Load_settings  batch_size  failed 0  /  worked 4" },
-    ]} />
+    <Chat lang={lang} frames={frames} msgs={LOOP[lang]} style={{ position: "absolute", left: 210, right: 210, top: 170, bottom: 185 }} />
   </AbsoluteFill>
 );
+
+const AGENT: Record<Lang, Msg[]> = {
+  en: [
+    { at: 0.02, kind: "user", text: "Give the Store Helper agent a tool to look up an order's status." },
+    { at: 0.06, kind: "tool", tool: "get_agent", detail: "Store Helper", result: "no instructions, no tools", tone: "out" },
+    { at: 0.17, kind: "tool", tool: "create_agent_flow", detail: "DEMO - Order status", result: "solution flow, Started", tone: "ok" },
+    { at: 0.28, kind: "tool", tool: "add_flow_tool", detail: "orderId → status, eta, carrier", result: "added", tone: "ok" },
+    { at: 0.42, kind: "tool", tool: "update_agent_instructions", detail: "Return {json} ...", result: "refused: braces are Power Fx", tone: "err" },
+    { at: 0.5, kind: "tool", tool: "update_agent_instructions", result: "updated, previous kept", tone: "ok" },
+    { at: 0.58, kind: "tool", tool: "publish_agent", result: "Succeeded, 33 s", tone: "ok" },
+    { at: 0.64, kind: "assistant", text: "Done. Store Helper now calls Get order status when someone asks about an order, and it is live." },
+    { at: 0.77, kind: "user", text: "Now the HR agent on the new harness: write its instructions and skills." },
+    { at: 0.83, kind: "tool", tool: "get_agent", detail: "HR Cycle Assistant", result: "harness: github_copilot", tone: "out" },
+    { at: 0.88, kind: "tool", tool: "upsert_agent_skill", detail: "pcd-questions", result: "added", tone: "ok" },
+  ],
+  fr: [
+    { at: 0.02, kind: "user", text: "Donne à l'agent Store Helper un outil pour consulter le statut d'une commande." },
+    { at: 0.06, kind: "tool", tool: "get_agent", detail: "Store Helper", result: "ni instructions, ni outils", tone: "out" },
+    { at: 0.17, kind: "tool", tool: "create_agent_flow", detail: "DEMO - Order status", result: "flux de solution, démarré", tone: "ok" },
+    { at: 0.28, kind: "tool", tool: "add_flow_tool", detail: "orderId → status, eta, carrier", result: "ajouté", tone: "ok" },
+    { at: 0.42, kind: "tool", tool: "update_agent_instructions", detail: "Return {json} ...", result: "refusé : accolades = Power Fx", tone: "err" },
+    { at: 0.5, kind: "tool", tool: "update_agent_instructions", result: "mis à jour, ancienne version gardée", tone: "ok" },
+    { at: 0.58, kind: "tool", tool: "publish_agent", result: "Succeeded, 33 s", tone: "ok" },
+    { at: 0.64, kind: "assistant", text: "C'est fait. Store Helper appelle désormais Get order status quand on l'interroge sur une commande, et c'est en ligne." },
+    { at: 0.77, kind: "user", text: "Maintenant l'agent RH sur le nouveau harnais : écris ses instructions et ses skills." },
+    { at: 0.83, kind: "tool", tool: "get_agent", detail: "HR Cycle Assistant", result: "harnais : github_copilot", tone: "out" },
+    { at: 0.88, kind: "tool", tool: "upsert_agent_skill", detail: "pcd-questions", result: "ajoutée", tone: "ok" },
+  ],
+};
 
 const Agent: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => {
   const rule = useEnter(frames * 0.2);
   return (
     <AbsoluteFill style={{ background: BG }}>
       <Heading>{T[lang].agentTitle}</Heading>
-      <Terminal frames={frames} title="power-platform-copilot" style={{ position: "absolute", left: 110, width: 1080, top: 170, bottom: 190 }} lines={[
-        { at: 0.02, tone: "cmd", text: "list_agents  ->  get_agent(Store Helper)" },
-        { at: 0.07, tone: "out", text: "instructions: (empty)   tools: none" },
-        { at: 0.2, tone: "cmd", text: 'create_agent_flow("DEMO - Order status")' },
-        { at: 0.26, tone: "ok", text: "solution flow, Started" },
-        { at: 0.36, tone: "cmd", text: 'add_flow_tool("Get order status")' },
-        { at: 0.41, tone: "ok", text: "added   inputs: orderId" },
-        { at: 0.45, tone: "ok", text: "        outputs: status, eta, carrier" },
-        { at: 0.54, tone: "cmd", text: 'update_agent_instructions("Return {json} ...")' },
-        { at: 0.59, tone: "err", text: "Refused: braces are read as Power Fx" },
-        { at: 0.65, tone: "cmd", text: "update_agent_instructions(...)" },
-        { at: 0.69, tone: "ok", text: "updated   previous_instructions kept" },
-        { at: 0.78, tone: "cmd", text: "publish_agent" },
-        { at: 0.86, tone: "ok", text: "Succeeded   33 s" },
-      ]} />
+      <Chat lang={lang} frames={frames} msgs={AGENT[lang]} style={{ position: "absolute", left: 110, width: 1080, top: 170, bottom: 185 }} />
       <Card delay={frames * 0.2} style={{ position: "absolute", right: 110, width: 560, top: 170, padding: "34px 36px", opacity: rule }}>
         <div style={{ fontFamily: SANS, fontSize: 30, fontWeight: 700, color: NAVY, lineHeight: 1.3, marginBottom: 28 }}>{T[lang].rule}</div>
         <div style={{ fontFamily: SANS, fontSize: 25, color: RED, padding: "16px 18px", background: "#FDECEA", borderRadius: 10, marginBottom: 16 }}>✕  {T[lang].ruleBad}</div>
@@ -312,17 +375,31 @@ const Skills: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => {
   );
 };
 
+const INSTALL: Record<Lang, Msg[]> = {
+  en: [
+    { at: 0.02, kind: "user", text: "Set up power-platform-mcp on my machine, from github.com/OwnOptic/power-platform-mcp." },
+    { at: 0.09, kind: "tool", tool: "clone", detail: "OwnOptic/power-platform-mcp", result: "done", tone: "ok" },
+    { at: 0.16, kind: "tool", tool: "virtual environment", detail: ".venv", result: "created", tone: "ok" },
+    { at: 0.23, kind: "tool", tool: "requirements", detail: "locked versions", result: "installed", tone: "ok" },
+    { at: 0.36, kind: "tool", tool: "az profile", detail: "separate, for the demo tenant", result: "created", tone: "ok" },
+    { at: 0.44, kind: "tool", tool: "az login", detail: "demo tenant", result: "signed in", tone: "ok" },
+    { at: 0.56, kind: "assistant", text: "Ready. I added the three servers to your MCP configuration. Everything runs locally, as you." },
+  ],
+  fr: [
+    { at: 0.02, kind: "user", text: "Installe power-platform-mcp sur ma machine, depuis github.com/OwnOptic/power-platform-mcp." },
+    { at: 0.09, kind: "tool", tool: "clone", detail: "OwnOptic/power-platform-mcp", result: "fait", tone: "ok" },
+    { at: 0.16, kind: "tool", tool: "environnement virtuel", detail: ".venv", result: "créé", tone: "ok" },
+    { at: 0.23, kind: "tool", tool: "dépendances", detail: "versions verrouillées", result: "installées", tone: "ok" },
+    { at: 0.36, kind: "tool", tool: "profil az", detail: "séparé, pour le tenant de démo", result: "créé", tone: "ok" },
+    { at: 0.44, kind: "tool", tool: "az login", detail: "tenant de démo", result: "connecté", tone: "ok" },
+    { at: 0.56, kind: "assistant", text: "C'est prêt. J'ai ajouté les trois serveurs à votre configuration MCP. Tout tourne en local, en votre nom." },
+  ],
+};
+
 const Install: React.FC<{ lang: Lang; frames: number }> = ({ lang, frames }) => (
   <AbsoluteFill style={{ background: BG }}>
     <Heading>{T[lang].install}</Heading>
-    <Terminal frames={frames} title="PowerShell" style={{ position: "absolute", left: 110, width: 900, top: 170, bottom: 190 }} lines={[
-      { at: 0.04, tone: "cmd", text: "git clone https://github.com/OwnOptic/power-platform-mcp" },
-      { at: 0.14, tone: "cmd", text: "python -m venv .venv" },
-      { at: 0.22, tone: "cmd", text: ".venv\\Scripts\\pip install -r requirements.txt" },
-      { at: 0.36, tone: "cmd", text: '$env:AZURE_CONFIG_DIR = "$HOME\\.azure-demo"' },
-      { at: 0.44, tone: "cmd", text: "az login --tenant <demo tenant>" },
-      { at: 0.56, tone: "ok", text: "ready" },
-    ]} />
+    <Chat lang={lang} frames={frames} msgs={INSTALL[lang]} style={{ position: "absolute", left: 110, width: 900, top: 170, bottom: 185 }} />
     <Card delay={frames * 0.6} style={{ position: "absolute", right: 110, width: 780, top: 170, padding: "28px 34px" }}>
       <div style={{ fontFamily: MONO, fontSize: 22, color: MUTED, marginBottom: 14 }}>{T[lang].config}</div>
       <pre style={{ fontFamily: MONO, fontSize: 22, lineHeight: 1.55, color: NAVY, margin: 0 }}>{`"power-platform":
