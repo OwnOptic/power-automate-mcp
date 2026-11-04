@@ -1,10 +1,12 @@
-<img src="docs/banner.png" alt="power-automate-mcp - an MCP server that lets Claude create, run and debug your Power Automate flows" width="100%">
+<img src="docs/banner.png" alt="power-platform-mcp - an MCP server that lets Claude create, run and debug your Power Automate flows" width="100%">
 
-# power-automate-mcp
+# power-platform-mcp
 
-[![ci](https://github.com/OwnOptic/power-automate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/OwnOptic/power-automate-mcp/actions/workflows/ci.yml)
+[![ci](https://github.com/OwnOptic/power-platform-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/OwnOptic/power-platform-mcp/actions/workflows/ci.yml)
 
-**An MCP server that lets Claude create, run, and debug your Power Automate flows.**
+**An MCP server that lets Claude create, run, and debug your Power Automate flows, and build Copilot Studio agents.**
+Renamed from `power-automate-mcp` on 4 November 2026: it now covers both sides of the Power Platform
+an agent builder touches. Old links and clones keep working through GitHub's redirect.
 One file. Ten tools. Built as a teaching artifact for a community talk on why you
 should build your own MCP servers instead of waiting for someone to ship you one.
 Nine more tools for real work - environments, start and stop, cancel, resubmit,
@@ -23,8 +25,8 @@ your own `az login`.
 **Set it up.**
 
 ```bash
-git clone https://github.com/OwnOptic/power-automate-mcp.git
-cd power-automate-mcp
+git clone https://github.com/OwnOptic/power-platform-mcp.git
+cd power-platform-mcp
 pip install -r requirements.txt
 az login
 ```
@@ -34,15 +36,15 @@ Then add this to `.mcp.json` (Claude Code), with absolute paths:
 ```json
 {
   "mcpServers": {
-    "power-automate":         { "command": "python", "args": ["/absolute/path/to/server.py"] },
-    "power-automate-extras":  { "command": "python", "args": ["/absolute/path/to/extras.py"] },
-    "power-automate-copilot": { "command": "python", "args": ["/absolute/path/to/copilot_studio.py"] },
+    "power-platform":         { "command": "python", "args": ["/absolute/path/to/server.py"] },
+    "power-platform-extras":  { "command": "python", "args": ["/absolute/path/to/extras.py"] },
+    "power-platform-copilot": { "command": "python", "args": ["/absolute/path/to/copilot_studio.py"] },
     "microsoft-learn": { "type": "http", "url": "https://learn.microsoft.com/api/mcp" }
   }
 }
 ```
 
-`power-automate` alone is the ten-tool core. `-extras` adds environments, start and stop,
+`power-platform` alone is the ten-tool core. `-extras` adds environments, start and stop,
 cancel, resubmit and solutions; `-copilot` adds Copilot Studio agents. `microsoft-learn`
 lets Claude look up connector actions in Microsoft's documentation instead of guessing
 them. Use the same Python for all three - the venv one, if you made one. On Claude
@@ -267,8 +269,8 @@ It is written to stop and ask before anything that touches your tenant, and it n
 prints a token.
 
 ````text
-Set up the power-automate-mcp server on my machine, from
-https://github.com/OwnOptic/power-automate-mcp
+Set up the power-platform-mcp server on my machine, from
+https://github.com/OwnOptic/power-platform-mcp
 
 Work through the phases in order. After each phase, report what you found in one or
 two lines. If a check fails in a way not covered below, stop and tell me rather than
@@ -340,7 +342,7 @@ PHASE 4 - Wire it into my MCP client
 
     {
       "mcpServers": {
-        "power-automate": {
+        "power-platform": {
           "command": "<absolute path to the venv python>",
           "args": ["<absolute path to server.py>"]
         },
@@ -451,8 +453,8 @@ az account show --query "{tenant:tenantId, user:user.name}"
 ### 2. Install
 
 ```bash
-git clone https://github.com/OwnOptic/power-automate-mcp.git
-cd power-automate-mcp
+git clone https://github.com/OwnOptic/power-platform-mcp.git
+cd power-platform-mcp
 pip install -r requirements.txt
 ```
 
@@ -522,7 +524,7 @@ az account show --query "{tenant:tenantId, user:user.name}"
 Then give each server the same folder in `.mcp.json`:
 
 ```json
-"power-automate": {
+"power-platform": {
   "command": "python", "args": ["/absolute/path/to/server.py"],
   "env": { "AZURE_CONFIG_DIR": "C:/Users/you/.azure-demo" }
 }
@@ -548,9 +550,9 @@ default here.
 ```json
 {
   "mcpServers": {
-    "power-automate": {
+    "power-platform": {
       "command": "python",
-      "args": ["C:/path/to/power-automate-mcp/server.py"]
+      "args": ["C:/path/to/power-platform-mcp/server.py"]
     },
     "microsoft-learn": {
       "type": "http",
@@ -563,7 +565,7 @@ default here.
 The `microsoft-learn` entry is optional and recommended. See
 [Companion server: Microsoft Learn MCP](#companion-server-microsoft-learn-mcp).
 
-**Claude Desktop** - the `power-automate` entry, in `claude_desktop_config.json`:
+**Claude Desktop** - the `power-platform` entry, in `claude_desktop_config.json`:
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
@@ -714,15 +716,15 @@ this repo is arguing for.
 
 ## Tool reference
 
-Ten tools in `server.py`, nine in [`extras.py`](#running-extraspy), six in
+Ten tools in `server.py`, nine in [`extras.py`](#running-extraspy), nine in
 [`copilot_studio.py`](#the-copilot_studiopy-tools), plus a companion server for the
 documentation lookups none of them can do.
 
 | Group | `server.py` (the teaching core) | `extras.py` | `copilot_studio.py` |
 | --- | --- | --- | --- |
-| **Find** | `list_flows`, `get_flow` | `list_environments`, `list_solutions` | `list_agents`, `get_agent` |
-| **Author** | `create_flow`, `update_flow_definition`, `bind_connection` | `get_solution_flow_clientdata`, `update_solution_flow_definition` | `create_agent_flow`, `add_flow_tool`, `update_agent_instructions` |
-| **Operate** | `run_flow`, `list_runs` | `set_flow_state`, `cancel_run`, `resubmit_run`, `get_trigger_url`, `delete_flow` | `publish_agent` |
+| **Find** | `list_flows`, `get_flow` | `list_environments`, `list_solutions` | `list_agents`, `get_agent`, `export_agent` |
+| **Author** | `create_flow`, `update_flow_definition`, `bind_connection` | `get_solution_flow_clientdata`, `update_solution_flow_definition` | `create_agent_flow`, `add_flow_tool`, `update_agent_instructions`, `upsert_agent_skill` |
+| **Operate** | `run_flow`, `list_runs` | `set_flow_state`, `cancel_run`, `resubmit_run`, `get_trigger_url`, `delete_flow` | `publish_agent`, `remove_agent_component` |
 | **Diagnose** | `explain_run`, `compare_runs`, `analyze_flow_health` | | |
 | **Look up** *(Microsoft Learn MCP)* | `microsoft_docs_search`, `microsoft_docs_fetch`, `microsoft_code_sample_search` | | |
 
@@ -756,10 +758,13 @@ words on exactly that distinction.
 | `get_solution_flow_clientdata` | extras | no | reading a solution flow before editing it | `get_flow`, whose copy cannot be written back |
 | `update_solution_flow_definition` | extras | yes | editing a solution flow | `update_flow_definition`, which refuses these |
 | `list_agents` | copilot | no | you need an `agent_id` | `list_flows`: agents are not flows |
-| `get_agent` | copilot | no | before changing an agent: instructions, tools, knowledge | `get_flow` for the flows behind its tools |
+| `get_agent` | copilot | no | before changing an agent: harness, instructions, tools, knowledge, skills | `get_flow` for the flows behind its tools |
+| `export_agent` | copilot | no | reproducing an agent elsewhere: every component, raw, any environment | `get_agent`, which summarises |
 | `create_agent_flow` | copilot | yes | a flow an agent will call | `create_flow`, whose flows an agent cannot call |
 | `add_flow_tool` | copilot | yes | plugging that flow into the agent | `bind_connection`, which is about connectors |
 | `update_agent_instructions` | copilot | yes | changing what the agent does and says | `add_flow_tool`, which changes what it can do |
+| `upsert_agent_skill` | copilot | yes | a GitHub Copilot harness agent needs a skill | `update_agent_instructions`, always loaded |
+| `remove_agent_component` | copilot | yes, permanently | removing a skill, topic or Work IQ capability | `update_agent_instructions` to empty the text |
 | `publish_agent` | copilot | yes | making changes live in Teams and Copilot | the test pane, which sees drafts already |
 
 ### `list_flows(state="", top=25)`
@@ -1096,13 +1101,30 @@ The loop it exists for: **Claude builds a flow, plugs it into an agent as a tool
 the agent when to use it, and publishes.** The [`agent-tool`](.claude/skills/agent-tool/SKILL.md)
 skill walks it.
 
-#### `list_agents()` and `get_agent(agent_id)`
+**Both harnesses.** Copilot Studio now creates agents on two runtimes, and they store
+an agent in different places ([gotcha 11](#11-two-harnesses-two-storage-layouts)). Every
+tool here reads the agent's `template` first and does the right thing for each:
+`standard` (URL `.../bots/<id>`, topics) or `github_copilot` (URL `.../agents/<id>`,
+skills). The URL also gives you both ids:
+`copilotstudio.microsoft.com/environments/<environment_id>/bots|agents/<agent_id>`.
+
+#### `list_agents()` and `get_agent(agent_id, environment_id="")`
 
 `list_agents` returns `[{agent_id, name, schema_name, last_publish, published_on}]`.
-`get_agent` reads an agent the way its maker thinks about it: `instructions` as plain
-text (the Instructions box), `model`, `web_browsing`, `tools` (each with its kind, and
-its `flow_id` when it is a flow), `knowledge`, `child_agents`, `custom_topics` apart from
-the `system_topics` every agent ships with, and `last_publish`.
+`get_agent` reads an agent the way its maker thinks about it: `harness`, `instructions`
+as plain text (the Instructions box), `model`, `web_browsing`, `tools` (each with its
+kind, and its `flow_id` when it is a flow), `knowledge`, `files`, `skills`, `work_iq`
+(Microsoft 365 capabilities and their access level), `child_agents`, `custom_topics`
+apart from the `system_topics` every agent ships with, `test_cases` and `last_publish`.
+`environment_id` reads an agent in another environment than the server's.
+
+#### `export_agent(agent_id, environment_id="", include_test_cases=False)`
+
+The raw source: the bot row (with `configuration` parsed) and every component as stored,
+each with its YAML `kind`. The starting point for reproducing an agent in another
+environment or on the other harness, without a solution export. It says plainly what is
+not there: uploaded knowledge files have no bytes in their row, and a new harness agent's
+suggested prompts are in no column at all ([gotcha 15](#15-not-everything-an-agent-shows-is-in-dataverse)).
 
 #### `create_agent_flow(display_name, definition, solution="", start=True)`
 
@@ -1124,9 +1146,27 @@ Calling it again for the same flow refreshes the tool instead of adding a second
 #### `update_agent_instructions(agent_id, instructions)`
 
 Replaces the instructions and returns `previous_instructions`, the only undo there is.
-Rewrites that one YAML key and leaves every other byte of the component alone.
+On the standard harness it rewrites the `instructions:` key of the `gpt.default`
+component and leaves every other byte alone; on the GitHub Copilot harness it writes the
+StaticSegment in the bot's `configuration` and leaves the model and web settings alone.
 **Refuses `{` and `}`**: Copilot Studio parses braces in instructions as Power Fx, and the
 agent then fails on every message while the save itself succeeds.
+
+#### `upsert_agent_skill(agent_id, name, description, instructions)`
+
+GitHub Copilot harness only. Adds a skill, or replaces the one with that name, including
+one made in the designer under a different schema name. You pass the body; the front
+matter is built from `name` (lowercase words joined by hyphens, 64 characters at most)
+and `description` (1024 at most). The description is the trigger the agent reads before
+loading the skill, so write it as "use this when". Returns the previous body when it
+replaced one.
+
+#### `remove_agent_component(agent_id, schema_name, confirm=False)`
+
+A dry run until `confirm=True`: first it returns the component, data included, which is
+the backup, because a deleted component has no recycle bin. Typical use is the Work IQ
+capabilities a new harness agent can be created with ([gotcha 13](#13-a-new-agent-can-start-with-write-access-to-the-users-mailbox)).
+Refuses the standard-harness instructions component.
 
 #### `publish_agent(agent_id, wait_seconds=120)`
 
@@ -1449,6 +1489,80 @@ on. The Power Automate API sees the result as an ordinary flow with the same id,
 the `workflow` row first and refuses with the reason, because "saves, publishes, then
 fails in front of a user" is the most expensive kind of failure there is.
 
+### 11. Two harnesses, two storage layouts
+
+Since September 2026 Copilot Studio creates agents on a runtime of your choice, the
+*harness*, and it cannot be changed afterwards. Measured on 4 November 2026 on two agents
+in the same environment, read with the same `GET bots` and `GET botcomponents`:
+
+| | Standard harness | GitHub Copilot harness |
+| --- | --- | --- |
+| Designer URL | `.../bots/<id>` | `.../agents/<id>` |
+| `bots.template` | `default-2.1.0` | `cliagent-1.0.0` |
+| Instructions | component `<bot>.gpt.default`, type 15, YAML `instructions:` | `bots.configuration`, `agentSettings.instructions.segments[].value` (`StaticSegment`) |
+| Model | `aISettings.model.modelNameHint`, e.g. `GPT56Chat` | `agentSettings.model.series`, e.g. `gpt-6-1-sol` or `Auto` |
+| Behaviour | topics (`AdaptiveDialog`), child agents | skills: type 9, `<bot>.skill.<name>`, `kind: InlineAgentSkill`, SKILL.md in `content` |
+| Uploaded files | type 14 | type 14 |
+| Evaluation cases | type 19 | type 19, `EvaluationSet` plus `MultiTurnEvaluationCase` |
+
+A tool written for one silently does nothing useful on the other: a `gpt.default` search
+finds no row on the new harness and "the agent has no instructions" is a lie. So every
+tool here reads `template` first. Writes through Dataverse show up in the designer after
+a refresh; an already open designer tab saves its stale copy over them.
+
+### 12. `--tenant` is a guard; `--subscription` is the switch
+
+Layer 1 pins the tenant with `--tenant`, which asks the **active** az account for a token
+in that tenant. On a consultant machine with eight az accounts, the active one was a
+client's, and the pinned tenant failed with `AADSTS90072: User account ... does not exist
+in tenant` although a valid login for it sat in the same cache. `--subscription <tenant
+id>` selects that login, because a tenant-level account (`N/A(tenant level account)` in
+`az account list`) uses its tenant id as its subscription id. `_access_token` now tries
+the guard, then falls back to the switch, on exactly `AADSTS90072` and `AADSTS50020` and
+nothing else. The token is for the pinned tenant either way.
+
+### 13. A new agent can start with write access to the user's mailbox
+
+A GitHub Copilot harness agent created in the designer on 4 November 2026 came with six
+Work IQ capabilities, all at `access: Write`: mail, calendar, files, Teams, people and
+sites (type 9, `kind: IQCapability`, under a `<prefix>_draft_<id>` schema name). An HR
+assistant that answers questions about a process has no reason to write a user's mail.
+`get_agent` lists them under `work_iq`; `remove_agent_component` removes them, dry run
+first.
+
+### 14. The evaluation grader fails every refusal you asked for
+
+Copilot Studio's "General quality" grader checks first that each question is answered.
+An agent that correctly refuses (pay, another employee's rating, harassment, out of
+scope) is marked **Fail** with "question not answered", and the grader stops there. On a
+10-conversation run, all 4 failures were refusals the client had specified. Read the
+failures before the score, and grade refusal turns with a criterion that compares to an
+expected answer. Second trap from the same run: a test set imported from CSV with an
+`Expected Response` column came back with that column empty in the results export, so
+check the export before trusting a comparison grader.
+
+### 15. Not everything an agent shows is in Dataverse
+
+Knowledge files uploaded in the designer are type 14 rows with no bytes in `data`: an
+export cannot carry them, re-upload them. The suggested prompts of a new harness agent
+were in no column of `bots` or `botcomponents` at all, saved or not. And when you query
+Dataverse yourself, encode the `$filter`: a raw `curl` with spaces in the URL fails
+before it reaches the server, with nothing useful in the error.
+
+### 16. The source you are asked to copy may be a shell
+
+"Reproduce the DEV agent in PROD" pointed at a DEV agent with empty instructions, no
+knowledge and only default topics, last edited months earlier, while the real agent, with
+every recent change, lived in PROD. `export_agent` on the source first, and a near-empty
+result is a reason to ask which agent is meant, not to faithfully rebuild nothing.
+
+### 17. A managed environment can block a model change after publishing
+
+In a managed production environment, switching a published agent's model was refused
+with a generic server error that does not name the cause. Pick the model before the
+first publish, and pin it rather than leaving `Auto`, which also keeps evaluation scores
+comparable from one run to the next.
+
 ---
 
 ## The demo flow
@@ -1721,8 +1835,8 @@ They are described in the [tool reference](#the-extraspy-tools).
 ```json
 {
   "mcpServers": {
-    "power-automate":        { "command": "python", "args": ["C:/path/to/power-automate-mcp/server.py"] },
-    "power-automate-extras": { "command": "python", "args": ["C:/path/to/power-automate-mcp/extras.py"] }
+    "power-platform":        { "command": "python", "args": ["C:/path/to/power-platform-mcp/server.py"] },
+    "power-platform-extras": { "command": "python", "args": ["C:/path/to/power-platform-mcp/extras.py"] }
   }
 }
 ```
@@ -1757,7 +1871,7 @@ better than the one this repo had, so `_validate_definition` is a port of theirs
 Where this one wins, measured on the same failed run in the same environment on
 2026-08-17 (a Teams post to a channel that does not exist):
 
-| | flowagent (56 tools) | power-automate-mcp (10) |
+| | flowagent (56 tools) | power-platform-mcp (10) |
 |---|---|---|
 | which action failed | yes | yes |
 | error text | `"message": ""` | `404 NotFound: LocationLookupFailed-Location lookup failed for thread 19:...` |
@@ -1840,7 +1954,7 @@ Technically yes, and you should think hard first. See [Security](#security).
 Same four layers, different base URL and scope. Swap those two constants and the
 structure holds unchanged. That is why the file is organised the way it is - and
 [`copilot_studio.py`](#the-copilot_studiopy-tools) is the proof for Copilot Studio:
-six tools, no new auth code, the Dataverse audience borrowed from the same `az` session.
+nine tools across both harnesses, no new auth code, the Dataverse audience borrowed from the same `az` session.
 
 One caveat on transport. Pointing this server *at* Dataverse or Azure DevOps is the
 two-constant change above, and it stays a stdio server. Making it callable *from*

@@ -1,4 +1,4 @@
-"""power-automate-mcp, Copilot Studio - the FAQ's "same four layers, different API", made real.
+"""power-platform-mcp, Copilot Studio - the FAQ's "same four layers, different API", made real.
 
 A THIRD server. It edits Copilot Studio agents, and it is here because the most useful
 thing a flow can be is a tool an agent calls. The import line is the argument again:
@@ -11,15 +11,18 @@ Zero new auth code. Copilot Studio agents are Dataverse rows - `bots`, plus one
 `az` session that runs flows edits agents, with a token for the environment's org URL.
 
     list_agents                  the agents in the environment, with publish status
-    get_agent                    instructions, model, tools, knowledge, topics
+    get_agent                    harness, instructions, model, tools, knowledge, skills, Work IQ
+    export_agent                 every component, raw, from any environment - the copy source
     create_agent_flow            a flow an agent can call: a solution flow, made in Dataverse
     add_flow_tool                plug that flow in as a tool the agent decides to call
-    update_agent_instructions    rewrite the instructions, guarded, old text returned
+    update_agent_instructions    rewrite the instructions, guarded, old text returned (both harnesses)
+    upsert_agent_skill           add or replace a skill on a GitHub Copilot harness agent
+    remove_agent_component       remove a skill, topic, tool or capability, dry run first
     publish_agent                publish, and wait for the real result
 
 Register it like the others:
 
-    "power-automate-copilot": {"command": "python", "args": ["<abs path>/copilot_studio.py"]}
+    "power-platform-copilot": {"command": "python", "args": ["<abs path>/copilot_studio.py"]}
 """
 
 from __future__ import annotations
@@ -44,15 +47,32 @@ from server import (
     env_id,
 )
 
-mcp = MCPServer("power-automate-copilot", version=__version__)
+mcp = MCPServer("power-platform-copilot", version=__version__)
 
 # Dataverse stamps a publish's operationStart with its own clock; allow it to run a little
 # behind ours, or a publish that really happened reads as "no new publish".
 _CLOCK_SKEW = timedelta(seconds=30)
 
-# botcomponent.componenttype values, as stored. 9 covers topics, tools and child agents
-# alike; the schema name says which (<bot>.topic.X, <bot>.action.X, <bot>.agent.X).
-_TOPIC_OR_TOOL, _INSTRUCTIONS, _KNOWLEDGE = 9, 15, 16
+# botcomponent.componenttype values, as stored. 9 covers topics, tools, child agents and,
+# on the GitHub Copilot harness, skills and Work IQ capabilities alike; the schema name and
+# the YAML `kind` say which (<bot>.topic.X, <bot>.action.X, <bot>.agent.X, <bot>.skill.X).
+_TOPIC_OR_TOOL, _FILE, _INSTRUCTIONS, _KNOWLEDGE, _FEEDBACK, _TEST_CASE = 9, 14, 15, 16, 18, 19
+
+# Skill names follow agentskills.io: lowercase words joined by single hyphens.
+_SKILL_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+
+
+def _harness(template: str | None) -> str:
+    """Which runtime the agent was created on - it decides where everything is stored.
+
+    `cliagent-*` is the GitHub Copilot harness (Copilot Studio's "new agent experience",
+    URL .../agents/<id>): instructions live in the bot's `configuration` JSON, there are
+    skills instead of topics, and it is billed in Copilot Credits from the first test.
+    Anything else (`default-2.1.0`, URL .../bots/<id>) is the standard harness, where
+    instructions are the `gpt.default` component. The harness is chosen at creation and
+    an agent cannot move between them.
+    """
+    return "github_copilot" if (template or "").startswith("cliagent") else "standard"
 
 # The topics every new agent ships with. Listed apart so a model reading get_agent sees
 # the ones somebody actually wrote.
@@ -66,21 +86,78 @@ _SYSTEM_TOPICS = {
 # Dataverse plumbing for the two tables
 # ---------------------------------------------------------------------------
 
-def _api() -> tuple[str, dict[str, str]]:
-    return f"{_org_url(env_id())}/api/data/v9.2", _dataverse_headers(env_id())
+def _api(environment: str = "") -> tuple[str, dict[str, str]]:
+    """Dataverse base URL and headers for `environment`, or the server's own environment.
+
+    Reading from another environment matters more than it looks: reproducing an agent
+    means reading it in DEV and writing it in PROD, and the server is pinned to one.
+    """
+    env = environment or env_id()
+    return f"{_org_url(env)}/api/data/v9.2", _dataverse_headers(env)
 
 
-def _bot(agent_id: str, select: str) -> dict:
-    base, headers = _api()
+def _bot(agent_id: str, select: str, environment: str = "") -> dict:
+    base, headers = _api(environment) if environment else _api()
     return _dataverse("GET", f"{base}/bots({agent_id})", params={"$select": select}, headers=headers).json()
 
 
-def _components(agent_id: str) -> list[dict]:
-    base, headers = _api()
+def _components(agent_id: str, environment: str = "") -> list[dict]:
+    base, headers = _api(environment) if environment else _api()
     return _dataverse("GET", f"{base}/botcomponents", headers=headers, params={
-        "$select": "botcomponentid,componenttype,schemaname,name,statecode,data",
+        "$select": "botcomponentid,componenttype,schemaname,name,statecode,description,data",
         "$filter": f"_parentbotid_value eq {agent_id}",
     }).json().get("value", [])
+
+
+def _kind(data: str) -> str | None:
+    """The top-level `kind:` of a component's YAML, without parsing the document."""
+    match = re.search(r"^kind:\s*(\S+)", data or "", re.M)
+    return match.group(1) if match else None
+
+
+def _config(bot: dict) -> dict:
+    try:
+        return json.loads(bot.get("configuration") or "{}")
+    except ValueError:
+        return {}
+
+
+def _config_instructions(config: dict) -> str:
+    """Instructions of a GitHub Copilot harness agent: StaticSegment values, joined."""
+    segments = ((config.get("agentSettings") or {}).get("instructions") or {}).get("segments") or []
+    return "\n".join(s.get("value", "") for s in segments if s.get("$kind") == "StaticSegment")
+
+
+def _skill_front_matter(content: str) -> dict[str, str]:
+    """name and description from a SKILL.md front matter, enough to list skills."""
+    match = re.match(r"\s*---\n(.*?)\n---", content or "", re.S)
+    out: dict[str, str] = {}
+    for line in (match.group(1).splitlines() if match else []):
+        key, _, value = line.partition(":")
+        if key.strip() in ("name", "description"):
+            value = value.strip()
+            if value[:1] in ('"', "'"):
+                try:
+                    value = json.loads(value) if value[0] == '"' else value[1:-1].replace("''", "'")
+                except ValueError:
+                    value = value.strip("\"'")
+            out[key.strip()] = value
+    return out
+
+
+def _skill_content(data: str) -> str:
+    """The SKILL.md text inside an InlineAgentSkill component (`content: |` block)."""
+    lines = (data or "").splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("content:"):
+            body = []
+            for b in lines[i + 1:]:
+                if b and not b.startswith((" ", "\t")):
+                    break
+                body.append(b)
+            indent = min((len(b) - len(b.lstrip()) for b in body if b.strip()), default=0)
+            return "\n".join(b[indent:] for b in body).rstrip("\n") + "\n"
+    return ""
 
 
 def _agent_contract(definition: dict) -> tuple[dict, dict]:
@@ -221,28 +298,60 @@ def list_agents() -> list[dict]:
 
 
 @mcp.tool(annotations=ToolAnnotations(title="Get Agent", readOnlyHint=True))
-def get_agent(agent_id: str) -> dict:
-    """Read an agent the way its maker thinks about it: instructions, tools, knowledge, topics.
+def get_agent(agent_id: str, environment_id: str = "") -> dict:
+    """Read an agent the way its maker thinks about it: instructions, tools, knowledge, topics, skills.
 
-    Call this before update_agent_instructions or add_flow_tool. The instructions come
-    back as plain text, exactly what the Instructions box in Copilot Studio shows.
+    Call this before update_agent_instructions, add_flow_tool or upsert_agent_skill. The
+    instructions come back as plain text, exactly what the Instructions box shows.
 
-    Returns {agent_id, name, schema_name, instructions, model, web_browsing, tools,
-    knowledge, child_agents, custom_topics, system_topics, last_publish}.
-    `tools` lists each tool's display name and kind - InvokeFlowTaskAction is a Power
-    Automate flow, with its flow_id. System topics are the ones every agent ships with;
-    `custom_topics` are the ones somebody wrote.
+    Works on BOTH harnesses and says which one in `harness`:
+      "standard"        classic agent (URL .../bots/<id>): topics, gpt.default instructions
+      "github_copilot"  new agent experience (URL .../agents/<id>): skills, instructions in
+                        the bot configuration, Copilot Credits billed from the first test
+    The ids in a Copilot Studio URL are the environment and the agent:
+    copilotstudio.microsoft.com/environments/<environment_id>/bots|agents/<agent_id>.
+
+    `environment_id` reads an agent in ANOTHER environment than the server's (a DEV agent
+    you are about to reproduce in PROD). Empty means the server's own environment.
+
+    Returns {agent_id, name, schema_name, harness, instructions, model, web_browsing,
+    tools, knowledge, files, skills, work_iq, child_agents, custom_topics, system_topics,
+    test_cases, last_publish}. `tools`: InvokeFlowTaskAction is a Power Automate flow,
+    with its flow_id. `work_iq` lists the Microsoft 365 capabilities (mail, calendar,
+    files, teams, people, sites) and their access - a new harness agent can be created
+    with ALL of them at Write access, worth checking on any agent that has no business
+    touching a user's mailbox. `test_cases` counts the evaluation cases stored on the agent.
     """
-    bot = _bot(agent_id, "botid,name,schemaname,synchronizationstatus")
+    bot = _bot(agent_id, "botid,name,schemaname,template,configuration,synchronizationstatus", environment_id)
+    harness = _harness(bot.get("template"))
     out: dict[str, Any] = {
-        "agent_id": agent_id, "name": bot.get("name"), "schema_name": bot.get("schemaname"),
-        "instructions": None, "model": None, "web_browsing": None, "tools": [], "knowledge": [],
-        "child_agents": [], "custom_topics": [], "system_topics": [],
+        "agent_id": agent_id, "name": bot.get("name"), "schema_name": bot.get("schemaname"), "harness": harness,
+        "instructions": None, "model": None, "web_browsing": None, "tools": [], "knowledge": [], "files": [],
+        "skills": [], "work_iq": [], "child_agents": [], "custom_topics": [], "system_topics": [], "test_cases": 0,
         "last_publish": _last_publish(bot.get("synchronizationstatus")),
     }
-    for c in _components(agent_id):
+    if harness == "github_copilot":
+        settings = _config(bot).get("agentSettings") or {}
+        out["instructions"] = _config_instructions(_config(bot))
+        out["model"] = (settings.get("model") or {}).get("series")
+        out["web_browsing"] = bool((settings.get("web") or {}).get("enableWebSearch"))
+    for c in _components(agent_id, environment_id):
         schema, data = c.get("schemaname") or "", c.get("data") or ""
-        if c.get("componenttype") == _INSTRUCTIONS and schema.endswith(".gpt.default"):
+        kind = _kind(data)
+        if c.get("componenttype") == _TEST_CASE:
+            out["test_cases"] += kind != "EvaluationSet"
+        elif c.get("componenttype") == _FILE:
+            out["files"].append(c.get("name"))
+        elif kind == "InlineAgentSkill":
+            meta = _skill_front_matter(_skill_content(data))
+            out["skills"].append({"name": meta.get("name") or c.get("name"), "description": meta.get("description"),
+                                  "schema_name": schema, "enabled": c.get("statecode") == 0})
+        elif kind == "IQCapability":
+            cap = re.search(r"capability:\s*(\S+)", data)
+            access = re.search(r"access:\s*(\S+)", data)
+            out["work_iq"].append({"capability": cap.group(1) if cap else None,
+                                   "access": access.group(1) if access else None, "schema_name": schema})
+        elif c.get("componenttype") == _INSTRUCTIONS and schema.endswith(".gpt.default"):
             out["instructions"] = _instructions_span(data)[0]
             model = re.search(r"modelNameHint:\s*(\S+)", data)
             out["model"] = model.group(1) if model else None
@@ -285,12 +394,18 @@ def update_agent_instructions(agent_id: str, instructions: str) -> dict:
     refuses them before saving. Describe a JSON shape by field names instead; square
     brackets are fine.
 
-    Only the instructions key changes. Model, web browsing and every other setting in
-    the component are left byte for byte as they were.
+    Only the instructions change. Model, web browsing and every other setting are left as
+    they were.
 
-    NOT LIVE UNTIL PUBLISHED. The test pane in Copilot Studio picks the change up; Teams,
-    Microsoft 365 Copilot and every other channel keep the published version until you
-    run publish_agent.
+    BOTH HARNESSES. On the standard harness the text is the `instructions:` key of the
+    gpt.default component. On the GitHub Copilot harness (get_agent says `harness`) it is
+    a StaticSegment in the bot's `configuration` JSON - there is no gpt.default at all, and
+    no published 8000-character limit.
+
+    NOT LIVE UNTIL PUBLISHED. The test pane in Copilot Studio picks the change up (refresh
+    an open designer tab first, or its next save writes the old text back); Teams,
+    Microsoft 365 Copilot and every other channel keep the published version until you run
+    publish_agent.
     """
     if "{" in instructions or "}" in instructions:
         raise PowerAutomateError(
@@ -298,6 +413,18 @@ def update_agent_instructions(agent_id: str, instructions: str) -> dict:
             "and the agent then fails on every message with ContentValidationError. Describe the "
             "shape by field names, or put a literal example in a knowledge file."
         )
+    bot = _bot(agent_id, "template,configuration")
+    if _harness(bot.get("template")) == "github_copilot":
+        config = _config(bot)
+        previous = _config_instructions(config)
+        config.setdefault("agentSettings", {"$kind": "AgentSettings"})["instructions"] = {
+            "$kind": "Instructions", "segments": [{"$kind": "StaticSegment", "value": instructions}]}
+        base, headers = _api()
+        _dataverse("PATCH", f"{base}/bots({agent_id})", headers=headers,
+                   json={"configuration": json.dumps(config, ensure_ascii=False, indent=2)})
+        return {"status": "updated", "agent_id": agent_id, "harness": "github_copilot",
+                "characters": len(instructions), "previous_instructions": previous,
+                "hint": "Saved as a draft: refresh any open designer tab, then test; channels see it after publish_agent."}
     gpt = next((c for c in _components(agent_id)
                 if c.get("componenttype") == _INSTRUCTIONS and (c.get("schemaname") or "").endswith(".gpt.default")), None)
     if not gpt:
@@ -307,7 +434,7 @@ def update_agent_instructions(agent_id: str, instructions: str) -> dict:
     _dataverse("PATCH", f"{base}/botcomponents({gpt['botcomponentid']})", headers=headers,
                json={"data": _with_instructions(gpt["data"], instructions)})
     out: dict[str, Any] = {
-        "status": "updated", "agent_id": agent_id, "characters": len(instructions),
+        "status": "updated", "agent_id": agent_id, "harness": "standard", "characters": len(instructions),
         "previous_instructions": previous,
         "hint": "Saved as a draft: the test pane sees it now, channels see it after publish_agent.",
     }
@@ -448,6 +575,149 @@ def add_flow_tool(agent_id: str, flow_id: str, display_name: str, description: s
         "inputs": list(in_props), "outputs": list(out_props),
         "hint": "Run publish_agent to make it live. The flow must stay On for the agent to call it.",
     }
+
+
+@mcp.tool(annotations=ToolAnnotations(title="Export Agent", readOnlyHint=True))
+def export_agent(agent_id: str, environment_id: str = "", include_test_cases: bool = False) -> dict:
+    """Dump an agent's full definition, raw: the bot row plus every component, as stored.
+
+    The starting point for reproducing an agent somewhere else - another environment, or
+    the other harness - without a solution export, and the only way to SEE everything an
+    agent is made of. get_agent summarises; this returns the source.
+
+    Pass `environment_id` to read from another environment than the server's (the DEV
+    source of a PROD rebuild). Evaluation test cases (componenttype 19) are skipped unless
+    `include_test_cases`; an old agent can carry hundreds of them.
+
+    Returns {agent: {agent_id, name, schema_name, template, harness, language,
+    configuration}, components: [{schema_name, name, componenttype, kind, enabled,
+    description, data}], counts}. `configuration` is parsed JSON. `kind` is the YAML kind:
+    AdaptiveDialog (a topic), TaskDialog (a tool), AgentDialog (a child agent),
+    GptComponentMetadata (standard-harness instructions), KnowledgeSourceConfiguration,
+    InlineAgentSkill, IQCapability, and so on.
+
+    WHAT IS NOT IN IT, measured 2026-11-04: files uploaded as knowledge (componenttype 14)
+    come back with empty data - the file bytes are not in the row, re-upload them; and the
+    suggested prompts of a new harness agent are in no bots or botcomponents column at all.
+
+    Watch for a reproduction source that looks right and is not: a DEV agent can be an
+    empty shell (no instructions, only system topics) while the real agent lives in PROD.
+    A near-empty export is a reason to ask, not to rebuild nothing.
+    """
+    bot = _bot(agent_id, "botid,name,schemaname,template,language,configuration", environment_id)
+    rows = []
+    for c in _components(agent_id, environment_id):
+        if c.get("componenttype") == _TEST_CASE and not include_test_cases:
+            continue
+        rows.append({"schema_name": c.get("schemaname"), "name": c.get("name"), "componenttype": c.get("componenttype"),
+                     "kind": _kind(c.get("data") or ""), "enabled": c.get("statecode") == 0,
+                     "description": c.get("description"), "data": c.get("data")})
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r["kind"] or f"type {r['componenttype']}"] = counts.get(r["kind"] or f"type {r['componenttype']}", 0) + 1
+    return {
+        "agent": {"agent_id": agent_id, "name": bot.get("name"), "schema_name": bot.get("schemaname"),
+                  "template": bot.get("template"), "harness": _harness(bot.get("template")),
+                  "language": bot.get("language"), "configuration": _config(bot)},
+        "components": sorted(rows, key=lambda r: (r["componenttype"] or 0, r["schema_name"] or "")),
+        "counts": counts,
+    }
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Upsert Agent Skill",
+        readOnlyHint=False,
+        destructiveHint=True,  # replaces a skill of the same name; the old text comes back
+        idempotentHint=True,
+    )
+)
+def upsert_agent_skill(agent_id: str, name: str, description: str, instructions: str) -> dict:
+    """Add a skill to a GitHub Copilot harness agent, or replace the skill of that name.
+
+    Skills are what that harness has instead of topics: a SKILL.md (agentskills.io) the
+    agent loads when the `description` matches the request. Write the description as the
+    trigger - what the skill covers and when to use it - because that is all the agent
+    reads before deciding. `instructions` is the Markdown body; the front matter is built
+    here from `name` and `description`, so do not include one.
+
+    Rules checked before anything is written: `name` is lowercase words joined by hyphens,
+    at most 64 characters; `description` at most 1024. Standard-harness agents have no
+    skills and are refused (use topics, child agents or tools there).
+
+    Stored as componenttype 9, schema name <bot>.skill.<name>, YAML `kind: InlineAgentSkill`
+    with the SKILL.md in `content`. A skill of the same name made in the designer (often
+    with a `.topic.` schema name) is found and updated rather than duplicated.
+
+    Returns {status: added|updated, schema_name, characters, previous_instructions}.
+    Not live until publish_agent; refresh an open designer tab before saving in it.
+    """
+    if not _SKILL_NAME.fullmatch(name) or len(name) > 64:
+        raise PowerAutomateError(f'Skill name "{name}" must be lowercase words joined by hyphens, 64 characters at most.')
+    if not description.strip() or len(description) > 1024:
+        raise PowerAutomateError("The skill description is required and must be 1024 characters at most.")
+    if instructions.lstrip().startswith("---"):
+        raise PowerAutomateError("Pass the skill body only: the front matter is built from name and description.")
+    bot = _bot(agent_id, "schemaname,template")
+    if _harness(bot.get("template")) != "github_copilot":
+        raise PowerAutomateError("This is a standard-harness agent: skills exist only on the GitHub Copilot harness.")
+    content = f"---\nname: {name}\ndescription: {json.dumps(description, ensure_ascii=False)}\n---\n\n{instructions.strip()}\n"
+    data = "kind: InlineAgentSkill\nauthoringSource: Blank\ncontent: |\n" + "\n".join(
+        f"  {line}" if line.strip() else "" for line in content.splitlines()) + "\n"
+    schema = f"{bot['schemaname']}.skill.{name}"
+    existing = next((c for c in _components(agent_id) if _kind(c.get("data") or "") == "InlineAgentSkill" and (
+        c.get("schemaname") == schema or _skill_front_matter(_skill_content(c.get("data") or "")).get("name") == name)), None)
+    base, headers = _api()
+    body = {"name": name, "description": description, "data": data}
+    if existing:
+        previous = _skill_content(existing.get("data") or "")
+        _dataverse("PATCH", f"{base}/botcomponents({existing['botcomponentid']})", headers=headers, json=body)
+        status, schema = "updated", existing.get("schemaname") or schema
+    else:
+        previous = None
+        _dataverse("POST", f"{base}/botcomponents", headers=headers, json={
+            **body, "schemaname": schema, "componenttype": _TOPIC_OR_TOOL, "parentbotid@odata.bind": f"/bots({agent_id})"})
+        status = "added"
+    return {"status": status, "agent_id": agent_id, "schema_name": schema, "characters": len(content),
+            "previous_instructions": previous,
+            "hint": "Refresh an open designer tab, test, then publish_agent to make it live."}
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Remove Agent Component",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=True,
+    )
+)
+def remove_agent_component(agent_id: str, schema_name: str, confirm: bool = False) -> dict:
+    """Remove one component from an agent - a skill, a topic, a tool, a Work IQ capability.
+
+    DRY RUN BY DEFAULT. Without confirm=True nothing is deleted: you get the component
+    back, data included, so it can be shown to the user and kept as the backup. A deleted
+    component has no recycle bin; the returned data is the only way to recreate it.
+
+    Typical use: a new harness agent created with Work IQ capabilities at Write access on
+    the user's mail, calendar, files and Teams that it has no reason to touch (get_agent
+    lists them under `work_iq` with their schema names).
+
+    The standard-harness instructions component (gpt.default) is refused: clear the text
+    with update_agent_instructions instead. Not live until publish_agent.
+    """
+    row = next((c for c in _components(agent_id) if c.get("schemaname") == schema_name), None)
+    if row is None:
+        raise PowerAutomateError(f"No component {schema_name} on this agent. get_agent or export_agent lists them.")
+    if schema_name.endswith(".gpt.default"):
+        raise PowerAutomateError("Refused: that is the agent's instructions. Use update_agent_instructions.")
+    backup = {"schema_name": schema_name, "name": row.get("name"), "componenttype": row.get("componenttype"),
+              "kind": _kind(row.get("data") or ""), "data": row.get("data")}
+    if not confirm:
+        return {"status": "dry_run", "would_remove": backup,
+                "hint": "Nothing deleted. Show this to the user, keep the data, then call again with confirm=True."}
+    base, headers = _api()
+    _dataverse("DELETE", f"{base}/botcomponents({row['botcomponentid']})", headers=headers)
+    return {"status": "removed", "agent_id": agent_id, "removed": backup}
 
 
 @mcp.tool(

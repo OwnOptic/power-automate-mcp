@@ -1,4 +1,4 @@
-"""power-automate-mcp extras - the tools the teaching server deliberately leaves out.
+"""power-platform-mcp extras - the tools the teaching server deliberately leaves out.
 
 Run this as a SECOND MCP server alongside server.py. The point is not the nine
 tools; it is the import line below.
@@ -28,7 +28,7 @@ Why these nine and not the rest of the production server:
 
 Register it the same way as server.py, with its own entry:
 
-    "power-automate-extras": {"command": "python", "args": ["<abs path>/extras.py"]}
+    "power-platform-extras": {"command": "python", "args": ["<abs path>/extras.py"]}
 """
 
 from __future__ import annotations
@@ -44,16 +44,15 @@ from mcp.types import ToolAnnotations
 from server import (
     PowerAutomateError,
     __version__,
-    _az,
+    _access_token,
     _call,
     _flow_summary,
     _list,
-    _tenant_args,
     _trim,
     env_id,
 )
 
-mcp = MCPServer("power-automate-extras", version=__version__)
+mcp = MCPServer("power-platform-extras", version=__version__)
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +93,7 @@ def _org_url(environment: str) -> str:
 
 def _dataverse_headers(environment: str) -> dict[str, str]:
     org = _org_url(environment)
-    token = _az(["account", "get-access-token", "--resource", org,
-                 *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
+    token = _access_token(org)
     return {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",

@@ -1,4 +1,4 @@
-"""power-automate-mcp - a minimal Power Automate MCP server, built for a community call.
+"""power-platform-mcp - a minimal Power Automate MCP server, built for a community call.
 
 Ten tools. One file. No framework beyond the official MCP SDK (2.x).
 
@@ -52,7 +52,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 
 class PowerAutomateError(ToolError, RuntimeError):
@@ -83,7 +83,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 # FastMCP was renamed MCPServer in mcp 2.x; decorators, annotations and output
 # schemas carried over unchanged. Pass the version explicitly: 2.x reports an empty
 # serverInfo.version otherwise, where 1.x quietly reported the SDK's own.
-mcp = MCPServer("power-automate", version=__version__)
+mcp = MCPServer("power-platform", version=__version__)
 
 # ---------------------------------------------------------------------------
 # LAYER 1 - AUTH
@@ -163,6 +163,33 @@ def _az(args: list[str]) -> str:
     return out
 
 
+# The two errors that mean "the ACTIVE az account is not in the pinned tenant" - as opposed
+# to "you are not signed in to that tenant at all".
+_WRONG_ACCOUNT = ("AADSTS90072", "AADSTS50020")
+
+
+def _access_token(resource: str) -> str:
+    """A token for `resource` in the pinned tenant, even when another tenant's account is active.
+
+    Learned 2026-11-04 on a consultant machine with eight az accounts: `--tenant <id>`
+    asks the ACTIVE account for a token in that tenant, so with a client's account active
+    it fails with AADSTS90072 ("User account ... does not exist in tenant") although a
+    perfectly good login for the pinned tenant sits in the same az cache. `--subscription
+    <tenant id>` is the switch that does select that login: a tenant-level account (one
+    with no Azure subscription, shown as "N/A(tenant level account)" in `az account list`)
+    uses its tenant id as its subscription id. So: guard first, then select, and only on
+    exactly those two errors. The token is for the pinned tenant either way.
+    """
+    pinned = os.environ.get("PA_TENANT_ID", "").strip()
+    base = ["account", "get-access-token", "--resource", resource, "--query", "accessToken", "-o", "tsv"]
+    try:
+        return _az(base + _tenant_args())
+    except PowerAutomateError as exc:
+        if not pinned or not any(code in str(exc) for code in _WRONG_ACCOUNT):
+            raise
+        return _az(base + ["--subscription", pinned])
+
+
 _token_cache: tuple[str, float] | None = None
 _token_lock = threading.Lock()
 
@@ -182,8 +209,7 @@ def _token(force: bool = False) -> str:
     with _token_lock:
         if _token_cache and not force and _token_cache[1] - time.time() > 120:
             return _token_cache[0]
-        token = _az(["account", "get-access-token", "--resource", PA_RESOURCE,
-                     *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
+        token = _access_token(PA_RESOURCE)
         _token_cache = (token, time.time() + 45 * 60)
         return token
 
@@ -800,8 +826,7 @@ def _environment_connections(connector: str) -> dict[str, dict] | None:
     flow walk instead of reporting a false not_found.
     """
     try:
-        token = _az(["account", "get-access-token", "--resource", "https://service.powerapps.com/",
-                     *_tenant_args(), "--query", "accessToken", "-o", "tsv"])
+        token = _access_token("https://service.powerapps.com/")
         r = _http.get(
             "https://api.powerapps.com/providers/Microsoft.PowerApps/connections",
             params={"api-version": "2016-11-01", "$filter": f"environment eq '{env_id()}'"},

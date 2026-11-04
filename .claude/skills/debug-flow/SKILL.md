@@ -1,6 +1,6 @@
 ---
 name: debug-flow
-description: Diagnose a failing Power Automate flow with the power-automate MCP tools. Use when a flow run failed, a flow that worked yesterday broke, failures are intermittent, or the user asks why their flow is not working. Walks the loop from finding the failed run to attributing the cause and verifying the fix.
+description: Diagnose a failing Power Automate flow with the power-platform MCP tools. Use when a flow run failed, a flow that worked yesterday broke, failures are intermittent, or the user asks why their flow is not working. Walks the loop from finding the failed run to attributing the cause and verifying the fix.
 ---
 
 # Debug a Power Automate flow

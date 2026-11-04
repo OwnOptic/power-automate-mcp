@@ -50,7 +50,7 @@ def dv(monkeypatch):
         return _Resp(value(kwargs) if callable(value) else value)
 
     monkeypatch.setattr(cs, "_dataverse", fake)
-    monkeypatch.setattr(cs, "_api", lambda: (BASE, {"Authorization": "Bearer x"}))
+    monkeypatch.setattr(cs, "_api", lambda environment="": (BASE, {"Authorization": "Bearer x"}))
     monkeypatch.setattr(server, "_env_id", "env-test")
     fake.routes, fake.calls = routes, calls
     return fake
@@ -103,6 +103,7 @@ def test_braces_are_refused_before_anything_is_read(dv):
 
 
 def test_update_patches_the_gpt_component_and_returns_the_old_text(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = {"template": "default-2.1.0", "configuration": "{}"}
     dv.routes[("GET", "/botcomponents")] = components(gpt(GPT_INLINE))
     dv.routes[("PATCH", "/botcomponents(gpt-1)")] = {}
     out = cs.update_agent_instructions(AGENT, "New text.")
@@ -133,6 +134,128 @@ def test_get_agent_sorts_components(dv):
     assert out["knowledge"] == [{"name": "Docs", "kind": "SharePointSearchSource"}]
     assert out["custom_topics"] == ["Returns"] and out["system_topics"] == ["Greeting"]
     assert out["last_publish"]["status"] == "Succeeded"
+
+
+# --- GitHub Copilot harness ("new agent experience") ---------------------------------
+
+HARNESS_CONFIG = json.dumps({
+    "$kind": "BotConfiguration", "recognizer": {"$kind": "CLICopilotRecognizer"},
+    "agentSettings": {"$kind": "AgentSettings", "model": {"$kind": "ModelConfig", "series": "gpt-6-1-sol"},
+                      "instructions": {"$kind": "Instructions", "segments": [{"$kind": "StaticSegment", "value": "Old."}]},
+                      "web": {"$kind": "WebSettings", "enableWebSearch": False}}})
+SKILL_DATA = ("kind: InlineAgentSkill\nauthoringSource: Blank\ncontent: |\n  ---\n  name: okr-builder\n"
+              "  description: \"Draft an OKR: objective, key results.\"\n  ---\n\n  # OKR builder\n\n  Body.\n")
+
+
+def harness_bot(**extra):
+    return {"name": "HR", "schemaname": "cr2cd_agent1", "template": "cliagent-1.0.0",
+            "configuration": HARNESS_CONFIG, "synchronizationstatus": None, **extra}
+
+
+def test_get_agent_reads_a_harness_agent(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = harness_bot()
+    dv.routes[("GET", "/botcomponents")] = components(
+        {"componenttype": 9, "schemaname": "cr2cd_agent1.skill.okr-builder", "name": "okr-builder",
+         "statecode": 0, "data": SKILL_DATA},
+        {"componenttype": 9, "schemaname": "cr2cd_draft_X.iqCapability.mail_uAN", "name": "mail", "statecode": 0,
+         "data": "kind: IQCapability\r\ncapability: mail\r\naccess: Write"},
+        {"componenttype": 14, "schemaname": "cr2cd_agent1.file.guide", "name": "Guide.pdf", "statecode": 0, "data": None},
+        {"componenttype": 19, "schemaname": "mspva_1", "name": "set", "statecode": 0, "data": "kind: EvaluationSet\n"},
+        {"componenttype": 19, "schemaname": "mspva_2", "name": "Bonjour", "statecode": 0,
+         "data": "kind: MultiTurnEvaluationCase\n"},
+    )
+    out = cs.get_agent(AGENT)
+    assert out["harness"] == "github_copilot" and out["instructions"] == "Old." and out["model"] == "gpt-6-1-sol"
+    assert out["web_browsing"] is False and out["files"] == ["Guide.pdf"] and out["test_cases"] == 1
+    assert out["skills"] == [{"name": "okr-builder", "description": "Draft an OKR: objective, key results.",
+                              "schema_name": "cr2cd_agent1.skill.okr-builder", "enabled": True}]
+    assert out["work_iq"] == [{"capability": "mail", "access": "Write", "schema_name": "cr2cd_draft_X.iqCapability.mail_uAN"}]
+
+
+def test_harness_instructions_go_to_the_bot_configuration(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = harness_bot()
+    dv.routes[("PATCH", f"/bots({AGENT})")] = {}
+    out = cs.update_agent_instructions(AGENT, "New.")
+    assert out["harness"] == "github_copilot" and out["previous_instructions"] == "Old."
+    config = json.loads(dv.calls[-1][2]["configuration"])
+    assert config["agentSettings"]["instructions"]["segments"] == [{"$kind": "StaticSegment", "value": "New."}]
+    assert config["agentSettings"]["model"]["series"] == "gpt-6-1-sol"  # untouched
+    assert not [c for c in dv.calls if "botcomponents" in c[1]]
+
+
+@pytest.mark.parametrize("name, description, body, match", [
+    ("OKR Builder", "d", "b", "lowercase"),
+    ("okr--builder", "d", "b", "lowercase"),
+    ("okr-builder", "x" * 1025, "b", "1024"),
+    ("okr-builder", "d", "---\nname: x\n---\nbody", "front matter"),
+])
+def test_skill_rules_are_checked_before_anything_is_read(dv, name, description, body, match):
+    with pytest.raises(server.PowerAutomateError, match=match):
+        cs.upsert_agent_skill(AGENT, name, description, body)
+    assert dv.calls == []
+
+
+def test_skills_are_refused_on_the_standard_harness(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = {"schemaname": "new_bot", "template": "default-2.1.0"}
+    with pytest.raises(server.PowerAutomateError, match="standard-harness"):
+        cs.upsert_agent_skill(AGENT, "okr-builder", "d", "b")
+
+
+def test_upsert_skill_adds_an_inline_agent_skill(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = harness_bot()
+    dv.routes[("GET", "/botcomponents")] = components()
+    dv.routes[("POST", "/botcomponents")] = {}
+    out = cs.upsert_agent_skill(AGENT, "pcd-questions", 'Answer "PCD" questions: dates, steps.', "# PCD\n\nShort answers.")
+    assert out["status"] == "added" and out["schema_name"] == "cr2cd_agent1.skill.pcd-questions"
+    body = dv.calls[-1][2]
+    assert body["componenttype"] == 9 and body["parentbotid@odata.bind"] == f"/bots({AGENT})"
+    assert cs._kind(body["data"]) == "InlineAgentSkill"
+    content = cs._skill_content(body["data"])
+    assert cs._skill_front_matter(content) == {"name": "pcd-questions", "description": 'Answer "PCD" questions: dates, steps.'}
+    assert content.endswith("# PCD\n\nShort answers.\n")
+
+
+def test_upsert_skill_updates_a_designer_made_skill_of_the_same_name(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = harness_bot()
+    dv.routes[("GET", "/botcomponents")] = components(
+        {"botcomponentid": "s-1", "componenttype": 9, "schemaname": "msdyn_x.topic.okrbuilder", "data": SKILL_DATA})
+    dv.routes[("PATCH", "/botcomponents(s-1)")] = {}
+    out = cs.upsert_agent_skill(AGENT, "okr-builder", "Draft an OKR.", "New body.")
+    assert out["status"] == "updated" and out["schema_name"] == "msdyn_x.topic.okrbuilder"
+    assert "Body." in out["previous_instructions"]
+    assert not [c for c in dv.calls if c[0] == "POST"]
+
+
+def test_remove_component_is_a_dry_run_until_confirmed(dv):
+    row = {"botcomponentid": "iq-1", "componenttype": 9, "schemaname": "x.iqCapability.mail", "name": "mail",
+           "data": "kind: IQCapability\ncapability: mail\naccess: Write"}
+    dv.routes[("GET", "/botcomponents")] = components(row)
+    dv.routes[("DELETE", "/botcomponents(iq-1)")] = {}
+    dry = cs.remove_agent_component(AGENT, "x.iqCapability.mail")
+    assert dry["status"] == "dry_run" and dry["would_remove"]["data"] == row["data"]
+    assert not [c for c in dv.calls if c[0] == "DELETE"]
+    assert cs.remove_agent_component(AGENT, "x.iqCapability.mail", confirm=True)["status"] == "removed"
+    assert dv.calls[-1][:2] == ("DELETE", "/botcomponents(iq-1)")
+
+
+def test_remove_component_refuses_the_instructions(dv):
+    dv.routes[("GET", "/botcomponents")] = components(gpt(GPT_INLINE))
+    with pytest.raises(server.PowerAutomateError, match="update_agent_instructions"):
+        cs.remove_agent_component(AGENT, "new_bot.gpt.default", confirm=True)
+
+
+def test_export_agent_returns_the_source_and_skips_test_cases(dv):
+    dv.routes[("GET", f"/bots({AGENT})")] = harness_bot(language=1033)
+    dv.routes[("GET", "/botcomponents")] = components(
+        {"componenttype": 9, "schemaname": "cr2cd_agent1.skill.okr-builder", "name": "okr-builder", "statecode": 0,
+         "data": SKILL_DATA},
+        {"componenttype": 19, "schemaname": "mspva_2", "name": "Bonjour", "statecode": 0,
+         "data": "kind: MultiTurnEvaluationCase\n"},
+    )
+    out = cs.export_agent(AGENT)
+    assert out["agent"]["harness"] == "github_copilot" and out["agent"]["configuration"]["recognizer"]
+    assert [c["kind"] for c in out["components"]] == ["InlineAgentSkill"] and out["counts"] == {"InlineAgentSkill": 1}
+    assert len(cs.export_agent(AGENT, include_test_cases=True)["components"]) == 2
 
 
 # --- create_agent_flow and add_flow_tool -------------------------------------------

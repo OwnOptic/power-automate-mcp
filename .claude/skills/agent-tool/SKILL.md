@@ -5,7 +5,7 @@ description: Give a Copilot Studio agent a new capability by building a Power Au
 
 # Give an agent a tool it can call
 
-Uses the `power-automate-copilot` server (copilot_studio.py). The loop, in order:
+Uses the `power-platform-copilot` server (copilot_studio.py). The loop, in order:
 
 1. **Find the agent.** `list_agents`, then `get_agent` on it. Read its current
    instructions and tools aloud before changing anything; keep them for the undo.

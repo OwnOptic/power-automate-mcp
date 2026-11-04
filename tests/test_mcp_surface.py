@@ -53,10 +53,10 @@ def test_extras_adds_nine_and_overlaps_nothing():
     assert len(names) == 9 and not names & set(tools(server))
 
 
-def test_copilot_studio_adds_six_and_overlaps_nothing():
+def test_copilot_studio_adds_nine_and_overlaps_nothing():
     names = set(tools(copilot_studio))
-    assert names == {"list_agents", "get_agent", "create_agent_flow", "add_flow_tool",
-                     "update_agent_instructions", "publish_agent"}
+    assert names == {"list_agents", "get_agent", "export_agent", "create_agent_flow", "add_flow_tool",
+                     "update_agent_instructions", "upsert_agent_skill", "remove_agent_component", "publish_agent"}
     assert not names & (set(tools(server)) | set(tools(extras)))
 
 
@@ -72,7 +72,7 @@ def test_read_only_hints_match_what_the_tool_does(module):
     writers = {"create_flow", "update_flow_definition", "bind_connection", "run_flow",
                "set_flow_state", "cancel_run", "delete_flow", "resubmit_run",
                "update_solution_flow_definition", "create_agent_flow", "add_flow_tool",
-               "update_agent_instructions", "publish_agent"}
+               "update_agent_instructions", "publish_agent", "upsert_agent_skill", "remove_agent_component"}
     for name, tool in tools(module).items():
         assert tool.annotations.read_only_hint is (name not in writers), name
 

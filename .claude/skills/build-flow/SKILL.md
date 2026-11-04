@@ -1,6 +1,6 @@
 ---
 name: build-flow
-description: Create or modify a Power Automate flow headlessly with the power-automate MCP tools. Use when asked to create a flow, add or change an action, bind a connector, or start a flow that will not start. Encodes the definition rules and the create-bind-start sequence that make headless authoring work.
+description: Create or modify a Power Automate flow headlessly with the power-platform MCP tools. Use when asked to create a flow, add or change an action, bind a connector, or start a flow that will not start. Encodes the definition rules and the create-bind-start sequence that make headless authoring work.
 ---
 
 # Build or modify a Power Automate flow

@@ -11,7 +11,7 @@ up afterwards.
 
 ## 1. Agree the target before anything else
 
-- Which environment? `list_environments` (power-automate-extras) shows ids and which
+- Which environment? `list_environments` (power-platform-extras) shows ids and which
   have Dataverse (`has_dataverse: true`). The script uses `PA_ENV_ID`, or `--env <id>`.
 - Say the tenant and environment name back to the user and get a yes. The script acts as
   them and creates real metadata. Never a production environment for a demo.
