@@ -1455,5 +1455,10 @@ def analyze_flow_health(flow_id: str, last_n: int = 50, sample_failures: int = 5
     }
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console entry point (pyproject [project.scripts]): run this server over stdio."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

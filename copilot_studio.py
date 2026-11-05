@@ -765,5 +765,10 @@ def publish_agent(agent_id: str, wait_seconds: int = 120) -> dict:
             "hint": "No new publish recorded. If nothing changed since the last publish, nothing needed publishing."}
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console entry point (pyproject [project.scripts]): run this server over stdio."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -263,6 +263,25 @@ That gap is the entire argument for building your own MCP server.
 
 ## Quick start
 
+### Run it without cloning (uvx)
+
+With [uv](https://docs.astral.sh/uv/) installed, an MCP client can start each server straight
+from a tagged release; uv fetches the code and its dependencies on first launch:
+
+```json
+{
+  "mcpServers": {
+    "power-platform":         { "command": "uvx", "args": ["--from", "git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0", "power-platform-mcp"] },
+    "power-platform-extras":  { "command": "uvx", "args": ["--from", "git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0", "power-platform-extras"] },
+    "power-platform-copilot": { "command": "uvx", "args": ["--from", "git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0", "power-platform-copilot"] }
+  }
+}
+```
+
+Set `PA_TENANT_ID` (and `PA_ENV_ID`, `AZURE_CONFIG_DIR` if you use them) as environment
+variables, since there is no `.env` next to the code in this mode. This is how the Witivio
+agent delivery kit ships the servers.
+
 ### Let Claude install it
 
 If you already have Claude Code or Claude Desktop, paste the prompt below and it will

@@ -1,0 +1,37 @@
+# Lets the servers run without cloning, for an MCP client config or a Claude Code plugin:
+#
+#   uvx --from git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0 power-platform-mcp
+#   uvx --from git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0 power-platform-extras
+#   uvx --from git+https://github.com/OwnOptic/power-platform-mcp@v2.1.0 power-platform-copilot
+#
+# Cloning and running `python server.py` still works exactly as before. The dependency
+# ranges mirror requirements.in; requirements.txt stays the pinned lockfile for clones.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "power-platform-mcp"
+version = "2.1.0"
+description = "MCP servers that let Claude create, run and debug Power Automate flows and build Copilot Studio agents, on both harnesses."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.3.0,<3",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "typing-extensions>=4.13.0",
+]
+
+[project.urls]
+Repository = "https://github.com/OwnOptic/power-platform-mcp"
+
+[project.scripts]
+power-platform-mcp = "server:main"
+power-platform-extras = "extras:main"
+power-platform-copilot = "copilot_studio:main"
+
+[tool.setuptools]
+py-modules = ["server", "extras", "copilot_studio"]

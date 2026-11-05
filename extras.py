@@ -498,5 +498,10 @@ def update_solution_flow_definition(
     }
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console entry point (pyproject [project.scripts]): run this server over stdio."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
